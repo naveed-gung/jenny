@@ -661,23 +661,6 @@ export const UI = ({ hidden, ...props }) => {
           )}
         </>
       )}
-
-      <div className="absolute bottom-2 right-2 text-xs">
-        <button 
-          className="bg-gray-800 text-white px-2 py-1 rounded opacity-60 hover:opacity-100"
-          onClick={() => setShowDebug(!showDebug)}
-        >
-          {showDebug ? "Hide Debug" : "Show Debug"}
-        </button>
-        
-        {showDebug && (
-          <div className="bg-black bg-opacity-70 text-white p-2 mt-1 rounded w-64">
-            <div>Lip Sync Debug:</div>
-            <div>Current Cue: {lipSyncDebug.cue || "None"}</div>
-            <div>Audio Time: {lipSyncDebug.time.toFixed(2)}s</div>
-          </div>
-        )}
-      </div>
     </>
   );
 };
