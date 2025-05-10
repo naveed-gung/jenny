@@ -18,7 +18,7 @@ A real-time 3D avatar chat application that combines advanced AI technologies wi
 
 - **Frontend**: React, Three.js, Vite
 - **Backend**: Node.js, Express
-- **AI/ML**: OpenAI GPT, ElevenLabs Voice Synthesis
+- **AI/ML**: OpenAI GPT, Hugging Face, ElevenLabs Voice Synthesis
 - **3D Graphics**: Three.js, GLTF/GLB models
 - **Real-time Communication**: WebSocket
 

@@ -9,12 +9,12 @@ import fetch from "node-fetch";
 import path from "path";
 dotenv.config();
 
-// Hugging Face API key (replacing OpenAI)
-const huggingFaceApiKey = process.env.HUGGINGFACE_API_KEY ;
+// Gemini API key (replacing Hugging Face)
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
-const speechGenApiKey = process.env.SPEECHGEN_API_KEY ;
-const speechGenEmail = process.env.SPEECHGEN_EMAIL 
+const speechGenApiKey = process.env.SPEECHGEN_API_KEY;
+const speechGenEmail = process.env.SPEECHGEN_EMAIL;
 const voiceID = "kgG7dCoKCfLehAPWkJOE";
 
 const voiceMapping = {
@@ -39,6 +39,26 @@ const port = 3000;
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
+});
+
+// Add a test endpoint for Gemini API
+app.get("/test-gemini", async (req, res) => {
+  try {
+    const message = "Hello! Give me a short 1 sentence response to test the API connection.";
+    const response = await getAIResponse(message);
+    res.json({ 
+      success: true, 
+      message: "Gemini API connection successful", 
+      response 
+    });
+  } catch (error) {
+    console.error("Error testing Gemini API:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Gemini API connection failed", 
+      error: error.message 
+    });
+  }
 });
 
 app.get("/voices", async (req, res) => {
@@ -234,62 +254,74 @@ const splitTextIntoChunks = (text, maxLength = 500) => {
   return chunks;
 };
 
-// Function to get response from a free AI model (Hugging Face)
+// Function to get response from Google's Gemini API
 const getAIResponse = async (userMessage) => {
   try {
+    // Log the request for debugging
+    console.log("Sending request to Gemini API with message:", userMessage.substring(0, 50) + "...");
+
+    // Simplified request structure following Google's documentation exactly
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            { text: userMessage }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 800,
+      }
+    };
+
+    console.log("Using Gemini API key:", geminiApiKey ? "Key is present (starting with: " + geminiApiKey.substring(0, 3) + "...)" : "Key is missing");
+
+    // Make request to Gemini API with gemini-2.0-flash model
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
       {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${huggingFaceApiKey}`,
-        },
         method: "POST",
-        body: JSON.stringify({
-          inputs: userMessage,
-          parameters: {
-            max_length: 100,
-            temperature: 0.7,
-            top_p: 0.9,
-            do_sample: true,
-          },
-        }),
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
       }
     );
 
-    // Check response status first
+    // Get response text before trying to parse as JSON (for better error reporting)
+    const responseText = await response.text();
+    
+    // Log full response for debugging
+    console.log("Gemini API response status:", response.status);
+    console.log("Gemini API response text:", responseText.substring(0, 200) + "...");
+
+    // Check if response is successful
     if (!response.ok) {
-      console.error(`Hugging Face API error: ${response.status} - ${response.statusText}`);
+      console.error(`Gemini API error: ${response.status} - ${response.statusText}`);
+      console.error("Response body:", responseText);
       return "I'm sorry, I'm having trouble connecting to my brain right now. Please try again later.";
     }
 
-    const text = await response.text();
+    // Parse the response text as JSON
+    const result = JSON.parse(responseText);
     
-    // Check if response is empty or not valid JSON
-    if (!text || text === "Not Found") {
-      console.error("Hugging Face API returned invalid response:", text);
-      return "I'm sorry, I couldn't process your request. The model might be temporarily unavailable.";
-    }
-
-    try {
-      const result = JSON.parse(text);
-      // BlenderBot model returns a different format
-      if (result.generated_text) {
-        return result.generated_text;
-      } else if (result[0] && result[0].generated_text) {
-        return result[0].generated_text;
-      } else if (result.error) {
-        console.error("Hugging Face API error:", result.error);
-        return "I'm sorry, I'm having trouble connecting to my brain right now. Please try again later.";
-      } else {
-        return "I'm not sure how to respond to that. Could you try asking something else?";
-      }
-    } catch (jsonError) {
-      console.error("Error parsing Hugging Face API response:", jsonError, "Response was:", text);
-      return "I'm sorry, I received an unexpected response format. Please try again later.";
+    // Extract the text response from Gemini's response format
+    if (result.candidates && result.candidates.length > 0 && 
+        result.candidates[0].content && 
+        result.candidates[0].content.parts && 
+        result.candidates[0].content.parts.length > 0) {
+      
+      return result.candidates[0].content.parts[0].text;
+    } else if (result.promptFeedback && result.promptFeedback.blockReason) {
+      console.error("Gemini response blocked:", result.promptFeedback);
+      return "I'm sorry, I can't respond to that request. It may contain inappropriate content.";
+    } else {
+      console.error("Unexpected Gemini API response format:", JSON.stringify(result).substring(0, 200));
+      return "I'm not sure how to respond to that. Could you try asking something else?";
     }
   } catch (error) {
-    console.error("Error with Hugging Face API:", error);
+    console.error("Error with Gemini API:", error);
     return "I'm sorry, I'm having trouble thinking right now. Please try again later.";
   }
 };
