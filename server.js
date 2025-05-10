@@ -6,11 +6,20 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import fs from 'fs';
 
-// Ensure audios directory exists
+// Load environment variables
+dotenv.config();
+
+// Ensure required directories exist
 const audioDir = path.join(process.cwd(), 'audios');
 if (!fs.existsSync(audioDir)) {
   fs.mkdirSync(audioDir, { recursive: true });
   console.log('Created audios directory');
+}
+
+const binDir = path.join(process.cwd(), 'bin');
+if (!fs.existsSync(binDir)) {
+  fs.mkdirSync(binDir, { recursive: true });
+  console.log('Created bin directory');
 }
 
 // Import the backend code

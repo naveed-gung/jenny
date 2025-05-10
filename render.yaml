@@ -2,7 +2,7 @@ services:
   - type: web
     name: jenny
     env: node
-    buildCommand: npm install && cd frontend && npm install && npm run build && cd ../backend && npm install
+    buildCommand: npm install && cd frontend && npm install && npm run build
     startCommand: npm start
     envVars:
       - key: ELEVEN_LABS_API_KEY
