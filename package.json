@@ -10,8 +10,7 @@
     "dev": "npm-run-all --parallel frontend backend",
     "frontend": "cd frontend && npm run dev",
     "backend": "cd backend && npm run dev",
-    "install-all": "npm install && cd frontend && npm install && cd ../backend && npm install",
-    "postinstall": "npm run install-all && npm run build"
+    "install-all": "npm install && cd frontend && npm install && cd ../backend && npm install"
   },
   "author": "Naveed Sohail Gung",
   "license": "ISC",
