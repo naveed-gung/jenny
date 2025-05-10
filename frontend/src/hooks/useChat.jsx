@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+// In production, use relative URL for API calls when deployed as a single service
+const isProduction = import.meta.env.PROD;
+const backendUrl = isProduction ? '' : (import.meta.env.VITE_API_URL || "http://localhost:3000");
 
 const ChatContext = createContext();
 

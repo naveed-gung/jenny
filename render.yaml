@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: jenny-backend
+    name: jenny
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && node index.js
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: ELEVEN_LABS_API_KEY
         sync: false
