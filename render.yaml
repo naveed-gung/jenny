@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: jenny-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node index.js
+    envVars:
+      - key: ELEVEN_LABS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SPEECHGEN_API_KEY
+        sync: false
+      - key: SPEECHGEN_EMAIL
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: jenny-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: jenny-backend
+          type: web
+          property: url 
