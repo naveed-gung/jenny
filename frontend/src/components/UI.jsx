@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { useChat } from "../hooks/useChat";
+import { FaGithub } from 'react-icons/fa';
 
 export const UI = ({ hidden, ...props }) => {
   const input = useRef();
@@ -123,14 +124,14 @@ export const UI = ({ hidden, ...props }) => {
         {!isMobile && (
           <div className="w-72 h-[calc(100%-2rem)] my-auto ml-2.5 mb-4 rounded-xl pointer-events-auto backdrop-blur-xl bg-white bg-opacity-50 shadow-lg flex flex-col border border-pink-100">
             <div className="p-4 flex flex-col h-full">
-              <h2 className="text-2xl font-bold mb-6 text-pink-600 text-center">
+              <h2 className="text-2xl font-bold mb-4 text-pink-600 text-center">
                 <span className="bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">Jenny</span>
               </h2>
               
               {/* Mode Selection - Updated styling */}
-              <div className="mb-6">
+              <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Mode</label>
-                <div className="bg-white bg-opacity-70 rounded-lg p-1.5">
+                <div className="bg-white bg-opacity-70 rounded-lg p-1">
                   <div className="grid grid-cols-3 gap-1">
                     <button 
                       onClick={() => setInputMode("chat")}
@@ -176,10 +177,10 @@ export const UI = ({ hidden, ...props }) => {
               </div>
               
               {/* Voice Type Selection - Update with similar styling */}
-              <div className="mb-6">
+              <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Voice Type</label>
-                <div className="bg-white bg-opacity-70 rounded-lg p-2 space-y-2">
-                  <label className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${voiceType === "default" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
+                <div className="bg-white bg-opacity-70 rounded-lg p-2 space-y-1.5">
+                  <label className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all ${voiceType === "default" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
                     <input 
                       type="radio" 
                       name="voiceType" 
@@ -190,7 +191,7 @@ export const UI = ({ hidden, ...props }) => {
                     />
                     <span className="font-medium">Default Voice</span>
                   </label>
-                  <label className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${voiceType === "male" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
+                  <label className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all ${voiceType === "male" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
                     <input 
                       type="radio" 
                       name="voiceType" 
@@ -201,7 +202,7 @@ export const UI = ({ hidden, ...props }) => {
                     />
                     <span className="font-medium">Male Voice</span>
                   </label>
-                  <label className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${voiceType === "child" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
+                  <label className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all ${voiceType === "child" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
                     <input 
                       type="radio" 
                       name="voiceType" 
@@ -210,19 +211,34 @@ export const UI = ({ hidden, ...props }) => {
                       onChange={() => setVoiceType("child")}
                       className="mr-2 text-pink-500 focus:ring-pink-500"
                     />
-                    <span className="font-medium">Child Voice</span>
+                    <span className="font-medium">Child Voice <span className="text-xs text-gray-500">(Soon)</span></span>
                   </label>
                 </div>
               </div>
               
+              {/* Language Section */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Language <span className="text-xs text-gray-500">(Soon)</span>
+                </label>
+                <div className="bg-white bg-opacity-70 rounded-lg p-1">
+                  <select
+                    disabled
+                    className="w-full p-2 rounded-lg bg-gray-100 border border-gray-300 text-gray-600 cursor-not-allowed"
+                  >
+                    <option>English</option>
+                  </select>
+                </div>
+              </div>
+              
               {/* Voice Settings Section - with matching style */}
-              <div className="mb-6">
+              <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Voice Settings
                 </label>
-                <div className="bg-white bg-opacity-70 rounded-lg p-2">
+                <div className="bg-white bg-opacity-70 rounded-lg p-1">
                   {/* Pitch Control */}
-                  <div className="bg-white rounded-lg p-3 mb-2 border border-gray-100 shadow-sm">
+                  <div className="bg-white rounded-lg p-2 mb-2 border border-gray-100 shadow-sm">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pitch: {voicePitch.toFixed(1)}</label>
                     <input
                       type="range"
@@ -241,7 +257,7 @@ export const UI = ({ hidden, ...props }) => {
                   </div>
                   
                   {/* Rate Control - now functional */}
-                  <div className="bg-white rounded-lg p-3 mb-2 border border-gray-100 shadow-sm">
+                  <div className="bg-white rounded-lg p-2 mb-2 border border-gray-100 shadow-sm">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Speed: {voiceSpeed.toFixed(1)}</label>
                     <input
                       type="range"
@@ -260,7 +276,7 @@ export const UI = ({ hidden, ...props }) => {
                   </div>
                   
                   {/* Volume Control - now functional */}
-                  <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                  <div className="bg-white rounded-lg p-2 border border-gray-100 shadow-sm">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Volume: {voiceVolume}%</label>
                     <input
                       type="range"
@@ -281,32 +297,32 @@ export const UI = ({ hidden, ...props }) => {
               </div>
               
               {/* Camera Controls - with matching style */}
-              <div className="mb-6">
+              <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Controls</label>
                 <div className="bg-white bg-opacity-70 rounded-lg p-2">
-                  <div className="flex space-x-2">
-          <button
-            onClick={() => setCameraZoomed(!cameraZoomed)}
-                      className={`flex-1 p-2 rounded-lg flex items-center justify-center shadow-sm transition-all ${
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => setCameraZoomed(!cameraZoomed)}
+                      className={`flex-1 p-3 rounded-lg flex items-center justify-center shadow-sm transition-all ${
                         cameraZoomed 
                           ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white" 
                           : "bg-white hover:bg-gray-100"
                       }`}
                       title={cameraZoomed ? "Zoom Out" : "Zoom In"}
-          >
-            {cameraZoomed ? (
+                    >
+                      {cameraZoomed ? (
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" />
-              </svg>
-            ) : (
+                        </svg>
+                      ) : (
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
-              </svg>
-            )}
-          </button>
-          <button
+                        </svg>
+                      )}
+                    </button>
+                    <button
                       onClick={toggleScreenCapture}
-                      className={`flex-1 p-2 rounded-lg flex items-center justify-center shadow-sm transition-all ${
+                      className={`flex-1 p-3 rounded-lg flex items-center justify-center shadow-sm transition-all ${
                         isCapturing 
                           ? "bg-gradient-to-r from-red-500 to-red-600 text-white" 
                           : "bg-white hover:bg-gray-100"
@@ -345,7 +361,7 @@ export const UI = ({ hidden, ...props }) => {
             maxWidth: isMobile ? '100%' : 'calc(100% - 20rem)' // Account for sidebar width on desktop
           }}
         >
-          <div className={`mx-auto p-4 ${isMobile ? "w-[90%]" : "w-[70%]"}`}>
+          <div className={`mx-auto p-4 ${isMobile ? "w-[80%]" : "w-[70%]"}`}>
             {/* Chat input */}
             {inputMode === "chat" && (
               <div className="relative backdrop-blur-md bg-white bg-opacity-60 rounded-xl shadow-lg overflow-hidden">
@@ -426,6 +442,19 @@ export const UI = ({ hidden, ...props }) => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* GitHub Footer */}
+      <div className="fixed bottom-4  z-30 w-full flex justify-center pointer-events-auto">
+        <a
+          href="https://github.com/naveed-gung/jenny"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-600 hover:text-pink-600 transition-colors"
+          title="View on GitHub"
+        >
+          <FaGithub size={38} />
+        </a>
       </div>
 
       {/* Mobile view - Burger menu for sidebar and bottom navbar */}
@@ -517,8 +546,8 @@ export const UI = ({ hidden, ...props }) => {
                   {/* Voice Type Selection */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Voice Type</label>
-                    <div className="bg-white bg-opacity-70 rounded-lg p-2 space-y-2">
-                      <label className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${voiceType === "default" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
+                    <div className="bg-white bg-opacity-70 rounded-lg p-2 space-y-1.5">
+                      <label className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all ${voiceType === "default" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
                         <input 
                           type="radio" 
                           name="voiceType" 
@@ -529,7 +558,7 @@ export const UI = ({ hidden, ...props }) => {
                         />
                         <span className="font-medium">Default Voice</span>
                       </label>
-                      <label className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${voiceType === "male" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
+                      <label className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all ${voiceType === "male" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
                         <input 
                           type="radio" 
                           name="voiceType" 
@@ -540,7 +569,7 @@ export const UI = ({ hidden, ...props }) => {
                         />
                         <span className="font-medium">Male Voice</span>
                       </label>
-                      <label className={`flex items-center p-2 rounded-lg cursor-pointer transition-all ${voiceType === "child" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
+                      <label className={`flex items-center p-1.5 rounded-lg cursor-pointer transition-all ${voiceType === "child" ? "bg-pink-100 border border-pink-300 shadow-sm" : "hover:bg-gray-100"}`}>
                         <input 
                           type="radio" 
                           name="voiceType" 
@@ -549,17 +578,32 @@ export const UI = ({ hidden, ...props }) => {
                           onChange={() => setVoiceType("child")}
                           className="mr-2 text-pink-500 focus:ring-pink-500"
                         />
-                        <span className="font-medium">Child Voice</span>
+                        <span className="font-medium">Child Voice <span className="text-xs text-gray-500">(Soon)</span></span>
                       </label>
+                    </div>
+                  </div>
+                  
+                  {/* Language Section */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Language <span className="text-xs text-gray-500">(Soon)</span>
+                    </label>
+                    <div className="bg-white bg-opacity-70 rounded-lg p-1">
+                      <select
+                        disabled
+                        className="w-full p-2 rounded-lg bg-gray-100 border border-gray-300 text-gray-600 cursor-not-allowed"
+                      >
+                        <option>English</option>
+                      </select>
                     </div>
                   </div>
                   
                   {/* Voice Settings */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Voice Settings</label>
-                    <div className="bg-white bg-opacity-70 rounded-lg p-2">
+                    <div className="bg-white bg-opacity-70 rounded-lg p-1">
                       {/* Pitch Control */}
-                      <div className="bg-white rounded-lg p-3 mb-2 border border-gray-100 shadow-sm">
+                      <div className="bg-white rounded-lg p-2 mb-2 border border-gray-100 shadow-sm">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Pitch: {voicePitch.toFixed(1)}</label>
                         <input
                           type="range"
@@ -578,7 +622,7 @@ export const UI = ({ hidden, ...props }) => {
                       </div>
                       
                       {/* Rate Control - now functional */}
-                      <div className="bg-white rounded-lg p-3 mb-2 border border-gray-100 shadow-sm">
+                      <div className="bg-white rounded-lg p-2 mb-2 border border-gray-100 shadow-sm">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Speed: {voiceSpeed.toFixed(1)}</label>
                         <input
                           type="range"
@@ -597,7 +641,7 @@ export const UI = ({ hidden, ...props }) => {
                       </div>
                       
                       {/* Volume Control - now functional */}
-                      <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                      <div className="bg-white rounded-lg p-2 border border-gray-100 shadow-sm">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Volume: {voiceVolume}%</label>
                         <input
                           type="range"
@@ -621,13 +665,13 @@ export const UI = ({ hidden, ...props }) => {
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Controls</label>
                     <div className="bg-white bg-opacity-70 rounded-lg p-2">
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-3">
                         <button
                           onClick={() => {
                             setCameraZoomed(!cameraZoomed);
                             setShowVoiceModal(false);
                           }}
-                          className={`flex-1 p-2 rounded-lg flex items-center justify-center shadow-sm transition-all ${
+                          className={`flex-1 p-3 rounded-lg flex items-center justify-center shadow-sm transition-all ${
                             cameraZoomed 
                               ? "bg-gradient-to-r from-pink-500 to-pink-600 text-white" 
                               : "bg-white hover:bg-gray-100"
@@ -642,7 +686,7 @@ export const UI = ({ hidden, ...props }) => {
                             toggleScreenCapture();
                             setShowVoiceModal(false);
                           }}
-                          className={`flex-1 p-2 rounded-lg flex items-center justify-center shadow-sm transition-all ${
+                          className={`flex-1 p-3 rounded-lg flex items-center justify-center shadow-sm transition-all ${
                             isCapturing 
                               ? "bg-gradient-to-r from-red-500 to-red-600 text-white" 
                               : "bg-white hover:bg-gray-100"
