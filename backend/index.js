@@ -686,6 +686,5 @@ const setupTools = async () => {
 // Call setup at startup instead of separate function calls
 setupTools().catch(console.error);
 
-app.listen(port, () => {
-  console.log(`AI Text Reader listening on port ${port}`);
-});
+// Export the app
+export default app;
