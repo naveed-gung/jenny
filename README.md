@@ -32,8 +32,8 @@ A real-time 3D avatar chat application that combines advanced AI technologies wi
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
-cd [project-directory]
+git clone https://github.com/naveed-gung/jenny
+cd jenny-main
 ```
 
 2. Install dependencies:
