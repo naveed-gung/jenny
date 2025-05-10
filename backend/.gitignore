@@ -1,0 +1,8 @@
+node_modules
+.env
+audios/*
+# Exclude any files that might contain API keys
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
