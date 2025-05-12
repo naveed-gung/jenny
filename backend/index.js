@@ -30,7 +30,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com', 'http://localhost:5173']
+    ? ['https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com', 'https://jenny-90fq.onrender.com', 'http://localhost:5173']
     : 'http://localhost:5173',
   methods: ['GET', 'POST'],
   credentials: true
