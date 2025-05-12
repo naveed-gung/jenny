@@ -30,15 +30,24 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com', 'http://localhost:5173']
+    ? ['https://jenny-90fq.onrender.com', 'https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com']
     : 'http://localhost:5173',
   methods: ['GET', 'POST'],
   credentials: true
 }));
 const port = 3000;
 
+// API status endpoint to replace "Hello World"
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.json({
+    status: "online",
+    service: "Jenny AI Avatar API",
+    endpoints: {
+      "/chat": "POST - Main chat endpoint",
+      "/voices": "GET - List available voices",
+      "/test-gemini": "GET - Test Gemini API connection"
+    }
+  });
 });
 
 // Add a test endpoint for Gemini API

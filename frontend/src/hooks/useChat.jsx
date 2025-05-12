@@ -6,6 +6,9 @@ const apiBaseUrl = import.meta.env.PROD
   ? ''  // Use relative URL in production when backend and frontend are served from same origin
   : (import.meta.env.VITE_API_URL || "http://localhost:3000");
 
+// Log the API base URL configuration
+console.log('API Base URL:', apiBaseUrl);
+
 const ChatContext = createContext();
 
 export const ChatProvider = ({ children }) => {
@@ -20,20 +23,36 @@ export const ChatProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     
+    const requestBody = { 
+      message, 
+      mode, 
+      voiceType, 
+      voicePitch, 
+      voiceSpeed, 
+      voiceVolume 
+    };
+    
+    console.log(`Making API request to: ${apiBaseUrl}/chat with:`, requestBody);
+    
     try {
       const response = await fetch(`${apiBaseUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message, mode, voiceType, voicePitch, voiceSpeed, voiceVolume }),
+        body: JSON.stringify(requestBody),
       });
       
+      console.log(`API response status:`, response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error response:`, errorText);
         throw new Error(`API request failed with status ${response.status}`);
       }
       
       const data = await response.json();
+      console.log(`API response data:`, data);
       
       if (!data || !data.messages) {
         throw new Error("Invalid response format from API");

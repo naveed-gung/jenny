@@ -44,13 +44,15 @@ app.use(express.json({ limit: '50mb' }));
 // Import the backend API
 import backendApp from './backend/index.js';
 
-// Mount the backend API at /
+// API endpoints - this will handle all backend routes like /chat, /voices, etc.
+// Note: No need for a prefix - the backend app already defines its routes with appropriate paths
 app.use('/', backendApp);
 
 // Serve static files from the frontend build directory
 app.use(express.static(path.join(__dirname, 'frontend/dist')));
 
-// All other GET requests not handled before will return the React app
+// For any requests that don't match API routes, serve the frontend
+// This must come AFTER the API routes to prevent interference
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
