@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-// In production, use relative URL for API calls when deployed as a single service
-const isProduction = import.meta.env.PROD;
-const backendUrl = isProduction ? '' : (import.meta.env.VITE_API_URL || "http://localhost:3000");
+// Determine API URL based on environment
+// In production with single-service deployment, use relative paths
+const apiBaseUrl = import.meta.env.PROD 
+  ? ''  // Use relative URL in production when backend and frontend are served from same origin
+  : (import.meta.env.VITE_API_URL || "http://localhost:3000");
 
 const ChatContext = createContext();
 
@@ -12,11 +14,14 @@ export const ChatProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [cameraZoomed, setCameraZoomed] = useState(true);
   const greetingTriggered = useRef(false);
+  const [error, setError] = useState(null);
   
   const chat = async (message, mode = "chat", voiceType = "default", voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
     setLoading(true);
+    setError(null);
+    
     try {
-      const data = await fetch(`${backendUrl}/chat`, {
+      const response = await fetch(`${apiBaseUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -24,10 +29,18 @@ export const ChatProvider = ({ children }) => {
         body: JSON.stringify({ message, mode, voiceType, voicePitch, voiceSpeed, voiceVolume }),
       });
       
-      const resp = (await data.json()).messages;
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data || !data.messages) {
+        throw new Error("Invalid response format from API");
+      }
       
       // Process messages to ensure valid animations
-      const processedMessages = resp.map(msg => {
+      const processedMessages = data.messages.map(msg => {
         // Fix animation names for compatibility with the loaded model
         if (msg.animation === "Wave") {
           // Replace with an animation that actually exists in animations.glb
@@ -39,6 +52,13 @@ export const ChatProvider = ({ children }) => {
       setMessages(prevMessages => [...prevMessages, ...processedMessages]);
     } catch (error) {
       console.error("Chat API error:", error);
+      setError(error.message);
+      // Add a fallback message when API fails
+      setMessages(prevMessages => [...prevMessages, {
+        text: "I'm sorry, I encountered a technical issue. Please try again.",
+        facialExpression: "sad",
+        animation: "Talking_0"
+      }]);
     } finally {
       setLoading(false);
     }
@@ -80,6 +100,7 @@ export const ChatProvider = ({ children }) => {
         message,
         onMessagePlayed,
         loading,
+        error,
         cameraZoomed,
         setCameraZoomed,
       }}

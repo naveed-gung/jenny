@@ -15,15 +15,5 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
-
-  - type: web
-    name: jenny-frontend
-    env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
-    envVars:
       - key: VITE_API_URL
-        fromService:
-          name: jenny-backend
-          type: web
-          property: url 
+        value: https://jenny-90fq.onrender.com 

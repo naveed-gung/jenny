@@ -6,6 +6,15 @@ export default defineConfig({
   plugins: [react()],
   define: {
     // Ensure environment variables are properly exposed to the frontend
-    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL)
+    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL)
+  },
+  server: {
+    // Configure proxy for development
+    proxy: {
+      '/chat': {
+        target: 'http://localhost:3000',
+        changeOrigin: true
+      }
+    }
   }
 })
