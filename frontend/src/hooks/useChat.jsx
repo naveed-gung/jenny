@@ -1,13 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-// Determine API URL based on environment
-// In production with single-service deployment, use relative paths
-const apiBaseUrl = import.meta.env.PROD 
-  ? ''  // Use relative URL in production when backend and frontend are served from same origin
-  : (import.meta.env.VITE_API_URL || "http://localhost:3000");
-
-// Log the API base URL configuration
-console.log('API Base URL:', apiBaseUrl);
+// In production, use relative URL for API calls when deployed as a single service
+const isProduction = import.meta.env.PROD;
+const backendUrl = isProduction ? '' : (import.meta.env.VITE_API_URL || "http://localhost:3000");
 
 const ChatContext = createContext();
 
@@ -17,49 +12,22 @@ export const ChatProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [cameraZoomed, setCameraZoomed] = useState(true);
   const greetingTriggered = useRef(false);
-  const [error, setError] = useState(null);
   
   const chat = async (message, mode = "chat", voiceType = "default", voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
     setLoading(true);
-    setError(null);
-    
-    const requestBody = { 
-      message, 
-      mode, 
-      voiceType, 
-      voicePitch, 
-      voiceSpeed, 
-      voiceVolume 
-    };
-    
-    console.log(`Making API request to: ${apiBaseUrl}/chat with:`, requestBody);
-    
     try {
-      const response = await fetch(`${apiBaseUrl}/chat`, {
+      const data = await fetch(`${backendUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ message, mode, voiceType, voicePitch, voiceSpeed, voiceVolume }),
       });
       
-      console.log(`API response status:`, response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`API error response:`, errorText);
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log(`API response data:`, data);
-      
-      if (!data || !data.messages) {
-        throw new Error("Invalid response format from API");
-      }
+      const resp = (await data.json()).messages;
       
       // Process messages to ensure valid animations
-      const processedMessages = data.messages.map(msg => {
+      const processedMessages = resp.map(msg => {
         // Fix animation names for compatibility with the loaded model
         if (msg.animation === "Wave") {
           // Replace with an animation that actually exists in animations.glb
@@ -71,13 +39,6 @@ export const ChatProvider = ({ children }) => {
       setMessages(prevMessages => [...prevMessages, ...processedMessages]);
     } catch (error) {
       console.error("Chat API error:", error);
-      setError(error.message);
-      // Add a fallback message when API fails
-      setMessages(prevMessages => [...prevMessages, {
-        text: "I'm sorry, I encountered a technical issue. Please try again.",
-        facialExpression: "sad",
-        animation: "Talking_0"
-      }]);
     } finally {
       setLoading(false);
     }
@@ -119,7 +80,6 @@ export const ChatProvider = ({ children }) => {
         message,
         onMessagePlayed,
         loading,
-        error,
         cameraZoomed,
         setCameraZoomed,
       }}

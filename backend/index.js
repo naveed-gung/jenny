@@ -30,24 +30,15 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://jenny-90fq.onrender.com', 'https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com']
+    ? ['https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com', 'http://localhost:5173']
     : 'http://localhost:5173',
   methods: ['GET', 'POST'],
   credentials: true
 }));
 const port = 3000;
 
-// API status endpoint to replace "Hello World"
 app.get("/", (req, res) => {
-  res.json({
-    status: "online",
-    service: "Jenny AI Avatar API",
-    endpoints: {
-      "/chat": "POST - Main chat endpoint",
-      "/voices": "GET - List available voices",
-      "/test-gemini": "GET - Test Gemini API connection"
-    }
-  });
+  res.send("Hello World!");
 });
 
 // Add a test endpoint for Gemini API
@@ -103,7 +94,7 @@ const lipSyncMessage = async (message) => {
         const dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
         const exists = fs_sync.existsSync(dictPath);
         console.log(`Dictionary file exists: ${exists}, path: ${dictPath}`);
-      
+        
         const command = `"${rhubarbPath}" -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`;
         console.log(`Running command: ${command}`);
         

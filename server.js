@@ -6,59 +6,36 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import fs from 'fs';
 
-// Load environment variables
-dotenv.config();
-
-// Ensure required directories exist
+// Ensure audios directory exists
 const audioDir = path.join(process.cwd(), 'audios');
 if (!fs.existsSync(audioDir)) {
   fs.mkdirSync(audioDir, { recursive: true });
   console.log('Created audios directory');
 }
 
-const binDir = path.join(process.cwd(), 'bin');
-if (!fs.existsSync(binDir)) {
-  fs.mkdirSync(binDir, { recursive: true });
-  console.log('Created bin directory');
-}
+// Import the backend code
+import './backend/index.js';
 
 // Get directory name in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create a unified Express app
-const app = express();
+// Create a new Express app to serve the frontend
+const frontendApp = express();
 
 // Use CORS
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://jenny-90fq.onrender.com', 'https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com']
-    : 'http://localhost:5173',
-  methods: ['GET', 'POST'],
-  credentials: true
-}));
-
-// Add JSON parsing middleware
-app.use(express.json({ limit: '50mb' }));
-
-// Import the backend API
-import backendApp from './backend/index.js';
-
-// API endpoints - this will handle all backend routes like /chat, /voices, etc.
-// Note: No need for a prefix - the backend app already defines its routes with appropriate paths
-app.use('/', backendApp);
+frontendApp.use(cors());
 
 // Serve static files from the frontend build directory
-app.use(express.static(path.join(__dirname, 'frontend/dist')));
+frontendApp.use(express.static(path.join(__dirname, 'frontend/dist')));
 
-// For any requests that don't match API routes, serve the frontend
-// This must come AFTER the API routes to prevent interference
-app.get('*', (req, res) => {
+// All other GET requests not handled before will return the React app
+frontendApp.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
 // Create HTTP server
 const PORT = process.env.PORT || 10000;
-createServer(app).listen(PORT, () => {
+createServer(frontendApp).listen(PORT, () => {
   console.log(`Unified server running on port ${PORT}`);
 }); 
