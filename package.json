@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
-    "postbuild": "mkdir -p bin && cp -r backend/bin/* bin/ 2>/dev/null || echo 'No files to copy' && chmod +x bin/rhubarb 2>/dev/null || echo 'Failed to make rhubarb executable'",
+    "postbuild": "node -e \"const fs=require('fs'); const path=require('path'); const binDir=path.join(process.cwd(),'bin'); if(!fs.existsSync(binDir)) fs.mkdirSync(binDir,{recursive:true}); const backendBin=path.join(process.cwd(),'backend','bin'); if(fs.existsSync(backendBin)) { try { fs.cpSync(backendBin,binDir,{recursive:true}); console.log('Copied Rhubarb files successfully'); } catch(e) { console.log('No files to copy or error:',e); } }\"",
     "dev": "npm-run-all --parallel frontend backend",
     "frontend": "cd frontend && npm run dev",
     "backend": "cd backend && npm run dev",

@@ -2,10 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 // In production, use relative URL for API calls when deployed as a single service
 const isProduction = import.meta.env.PROD;
-const backendUrl = isProduction ? '' : (import.meta.env.VITE_API_URL || "http://localhost:3000");
-
-// API endpoint paths - mounted at /api in production
-const apiPath = isProduction ? '/api' : '';
+const backendUrl = isProduction ? '/api' : (import.meta.env.VITE_API_URL || "http://localhost:3000");
 
 const ChatContext = createContext();
 
@@ -19,7 +16,7 @@ export const ChatProvider = ({ children }) => {
   const chat = async (message, mode = "chat", voiceType = "default", voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
     setLoading(true);
     try {
-      const data = await fetch(`${backendUrl}${apiPath}/chat`, {
+      const data = await fetch(`${backendUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
