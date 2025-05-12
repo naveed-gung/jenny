@@ -87,32 +87,60 @@ const lipSyncMessage = async (message) => {
       
       // Try to use Rhubarb directly, like in original implementation
       try {
-        // First try to find Rhubarb in backend/bin folder
-        let rhubarbPath = path.join(process.cwd(), 'backend', 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb');
+        // Check all possible locations for Rhubarb
+        const possiblePaths = [
+          path.join(process.cwd(), 'backend', 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb'),
+          path.join(process.cwd(), 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb'),
+          path.join('/opt/render/project/src/bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb'),
+          path.join('/opt/render/project/src/backend/bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb')
+        ];
         
-        // Check if it exists there
-        if (!fs_sync.existsSync(rhubarbPath)) {
-          // If not, try the root bin folder
-          rhubarbPath = path.join(process.cwd(), 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb');
-          
-          // If still not found, log but continue (will throw later if neither exists)
-          if (!fs_sync.existsSync(rhubarbPath)) {
-            console.log(`Rhubarb not found in backend/bin or bin folder, but will attempt anyway with: ${rhubarbPath}`);
-          } else {
-            console.log(`Rhubarb found in root bin folder: ${rhubarbPath}`);
+        // Find the first existing Rhubarb path
+        let rhubarbPath = null;
+        for (const p of possiblePaths) {
+          if (fs_sync.existsSync(p)) {
+            rhubarbPath = p;
+            console.log(`Found Rhubarb at: ${rhubarbPath}`);
+            break;
           }
-        } else {
-          console.log(`Rhubarb found in backend/bin folder: ${rhubarbPath}`);
+        }
+        
+        if (!rhubarbPath) {
+          throw new Error('Rhubarb executable not found in any location');
+        }
+        
+        // Verify file permissions
+        try {
+          const stats = fs_sync.statSync(rhubarbPath);
+          console.log(`Rhubarb permissions: ${stats.mode.toString(8)}`);
+          if ((stats.mode & 0o111) === 0) {
+            console.log('Rhubarb is not executable, setting permissions...');
+            fs_sync.chmodSync(rhubarbPath, 0o755);
+            console.log('Permissions updated');
+          }
+        } catch (statError) {
+          console.error('Error checking Rhubarb permissions:', statError);
         }
         
         // Check if dictionary files exist - first in backend, then in root
-        let dictPath = path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
-        if (!fs_sync.existsSync(dictPath)) {
-          dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+        let dictPath = null;
+        const possibleDictPaths = [
+          path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
+          path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
+          path.join('/opt/render/project/src/bin/res/sphinx', 'cmudict-en-us.dict'),
+          path.join('/opt/render/project/src/backend/bin/res/sphinx', 'cmudict-en-us.dict')
+        ];
+        
+        for (const p of possibleDictPaths) {
+          if (fs_sync.existsSync(p)) {
+            dictPath = p;
+            console.log(`Found dictionary at: ${dictPath}`);
+            break;
+          }
         }
         
-        const exists = fs_sync.existsSync(dictPath);
-        console.log(`Dictionary file exists: ${exists}, path: ${dictPath}`);
+        const exists = dictPath !== null;
+        console.log(`Dictionary file exists: ${exists}, path: ${dictPath || 'not found'}`);
       
         const command = `"${rhubarbPath}" -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`;
         console.log(`Running command: ${command}`);
@@ -684,51 +712,106 @@ const setupTools = async () => {
       console.log('Warning: The application will run without proper lip sync capability');
     }
     
+    // List all files in bin directory for debugging
+    try {
+      console.log("Checking bin directory content...");
+      const binDirPath = path.join(process.cwd(), 'bin');
+      if (fs_sync.existsSync(binDirPath)) {
+        const files = fs_sync.readdirSync(binDirPath);
+        console.log(`Files in bin directory: ${JSON.stringify(files)}`);
+        
+        // Check for subdirectories
+        if (fs_sync.existsSync(path.join(binDirPath, 'res'))) {
+          const resFiles = fs_sync.readdirSync(path.join(binDirPath, 'res'));
+          console.log(`Files in bin/res directory: ${JSON.stringify(resFiles)}`);
+          
+          if (fs_sync.existsSync(path.join(binDirPath, 'res', 'sphinx'))) {
+            const sphinxFiles = fs_sync.readdirSync(path.join(binDirPath, 'res', 'sphinx'));
+            console.log(`Files in bin/res/sphinx directory: ${JSON.stringify(sphinxFiles)}`);
+          }
+        }
+      } else {
+        console.log('bin directory does not exist');
+      }
+    } catch (listError) {
+      console.error('Error listing directory contents:', listError);
+    }
+    
     // Check for Rhubarb executable in both possible locations
     const rhubarb = process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb';
     
-    // First try backend/bin
-    let rhubarbPath = path.join(process.cwd(), 'backend', 'bin', rhubarb);
+    // Check all possible locations
+    const possiblePaths = [
+      path.join(process.cwd(), 'backend', 'bin', rhubarb),
+      path.join(process.cwd(), 'bin', rhubarb),
+      path.join('/opt/render/project/src/bin', rhubarb),
+      path.join('/opt/render/project/src/backend/bin', rhubarb),
+      // Add more potential paths if needed
+    ];
+    
+    let rhubarbPath = null;
     let found = false;
     
-    try {
-      await fs.access(rhubarbPath);
-      console.log(`Rhubarb found at ${rhubarbPath}`);
-      found = true;
-    } catch (error) {
-      // If not found in backend/bin, try root bin
-      rhubarbPath = path.join(process.cwd(), 'bin', rhubarb);
+    console.log("Checking all possible Rhubarb locations:");
+    for (const pathToCheck of possiblePaths) {
       try {
-        await fs.access(rhubarbPath);
-        console.log(`Rhubarb found at ${rhubarbPath}`);
+        console.log(`Checking: ${pathToCheck}`);
+        await fs.access(pathToCheck);
+        console.log(`✓ Rhubarb found at: ${pathToCheck}`);
+        rhubarbPath = pathToCheck;
         found = true;
+        break;
       } catch (error) {
-        console.warn(`Rhubarb not found at ${rhubarbPath} or in backend/bin. Lip sync will be disabled.`);
-        console.warn(`To enable lip sync, please download Rhubarb from https://github.com/DanielSWolf/rhubarb-lip-sync/releases`);
-        console.warn(`and place the executable in the bin directory.`);
+        console.log(`✗ Not found at: ${pathToCheck}`);
       }
     }
     
-    // If found, also check for dictionary files
-    if (found) {
-      // First check backend/bin/res
-      let dictPath = path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+    // If Rhubarb not found, try using 'which' on Linux/Mac
+    if (!found && process.platform !== 'win32') {
+      try {
+        const whichOutput = await execCommand('which rhubarb');
+        if (whichOutput.trim()) {
+          rhubarbPath = whichOutput.trim();
+          found = true;
+          console.log(`✓ Rhubarb found in PATH: ${rhubarbPath}`);
+        }
+      } catch (whichError) {
+        console.log('Rhubarb not found in PATH');
+      }
+    }
+    
+    if (!found) {
+      console.warn('Rhubarb executable not found in any location. Lip sync will be disabled.');
+      console.warn('To enable lip sync, please download Rhubarb from https://github.com/DanielSWolf/rhubarb-lip-sync/releases');
+      console.warn('and place the executable in the bin directory.');
+    } else {
+      // If found, also check for dictionary files
+      const possibleDictPaths = [
+        path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
+        path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
+        path.join('/opt/render/project/src/bin/res/sphinx', 'cmudict-en-us.dict'),
+        path.join('/opt/render/project/src/backend/bin/res/sphinx', 'cmudict-en-us.dict'),
+      ];
+      
+      let dictPath = null;
       let dictExists = false;
       
-      try {
-        await fs.access(dictPath);
-        console.log(`Dictionary file found at ${dictPath}`);
-        dictExists = true;
-      } catch (error) {
-        // If not found, check root bin/res
-        dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+      console.log("Checking all possible dictionary file locations:");
+      for (const pathToCheck of possibleDictPaths) {
         try {
-          await fs.access(dictPath);
-          console.log(`Dictionary file found at ${dictPath}`);
+          console.log(`Checking: ${pathToCheck}`);
+          await fs.access(pathToCheck);
+          console.log(`✓ Dictionary file found at: ${pathToCheck}`);
+          dictPath = pathToCheck;
           dictExists = true;
+          break;
         } catch (error) {
-          console.warn(`Dictionary file not found. Lip sync may not work properly.`);
+          console.log(`✗ Not found at: ${pathToCheck}`);
         }
+      }
+      
+      if (!dictExists) {
+        console.warn('Dictionary file not found. Lip sync may not work properly.');
       }
     }
   } catch (error) {
