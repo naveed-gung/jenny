@@ -6,28 +6,53 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import fs from 'fs';
 
-// Load environment variables
-dotenv.config();
-
-// Ensure required directories exist
-const audioDir = path.join(process.cwd(), 'audios');
-if (!fs.existsSync(audioDir)) {
-  fs.mkdirSync(audioDir, { recursive: true });
-  console.log('Created audios directory');
-}
-
-const binDir = path.join(process.cwd(), 'bin');
-if (!fs.existsSync(binDir)) {
-  fs.mkdirSync(binDir, { recursive: true });
-  console.log('Created bin directory');
-}
-
-// Import the backend code
-import './backend/index.js';
-
 // Get directory name in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load environment variables - prioritize backend .env if it exists
+const backendEnvPath = path.join(__dirname, 'backend', '.env');
+const rootEnvPath = path.join(__dirname, '.env');
+
+if (fs.existsSync(backendEnvPath)) {
+  console.log('Loading environment variables from backend/.env');
+  dotenv.config({ path: backendEnvPath });
+} else if (fs.existsSync(rootEnvPath)) {
+  console.log('Loading environment variables from root .env');
+  dotenv.config({ path: rootEnvPath });
+} else {
+  console.log('No .env file found, using system environment variables');
+  dotenv.config();
+}
+
+// Set correct bin directory path for both local and deployed environments
+const binDir = path.join(__dirname, 'backend', 'bin');
+if (!fs.existsSync(binDir)) {
+  fs.mkdirSync(binDir, { recursive: true });
+  console.log('Created backend/bin directory');
+}
+
+// Create symlink for the audios directory in the root to point to backend/audios
+// This ensures all paths are consistent regardless of where the code is executed from
+const rootAudioDir = path.join(__dirname, 'audios');
+const backendAudioDir = path.join(__dirname, 'backend', 'audios');
+
+if (!fs.existsSync(backendAudioDir)) {
+  fs.mkdirSync(backendAudioDir, { recursive: true });
+  console.log('Created backend/audios directory');
+}
+
+// Ensure the backend/bin directory has Rhubarb if available
+const isWindows = process.platform === 'win32';
+const rhubarbName = isWindows ? 'rhubarb.exe' : 'rhubarb';
+const rhubarbPath = path.join(binDir, rhubarbName);
+
+// Set the BIN_DIRECTORY environment variable for consistent access
+process.env.BIN_DIRECTORY = binDir;
+process.env.AUDIO_DIRECTORY = backendAudioDir;
+
+// Import the backend code
+import './backend/index.js';
 
 // Create a new Express app to serve the frontend
 const frontendApp = express();
@@ -69,4 +94,9 @@ frontendApp.get('*', (req, res) => {
 const PORT = process.env.PORT || 10000;
 createServer(frontendApp).listen(PORT, () => {
   console.log(`Unified server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`Bin directory: ${process.env.BIN_DIRECTORY}`);
+  console.log(`Audio directory: ${process.env.AUDIO_DIRECTORY}`);
+  console.log(`ElevenLabs API key status: ${process.env.ELEVEN_LABS_API_KEY ? 'Present' : 'Missing'}`);
+  console.log(`Gemini API key status: ${process.env.GEMINI_API_KEY ? 'Present' : 'Missing'}`);
 }); 
