@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
+    "postbuild": "mkdir -p bin && cp -r backend/bin/* bin/ 2>/dev/null || echo 'No files to copy'",
     "dev": "npm-run-all --parallel frontend backend",
     "frontend": "cd frontend && npm run dev",
     "backend": "cd backend && npm run dev",

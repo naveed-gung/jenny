@@ -87,11 +87,30 @@ const lipSyncMessage = async (message) => {
       
       // Try to use Rhubarb directly, like in original implementation
       try {
-        const rhubarbPath = path.join(process.cwd(), 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb');
-        console.log(`Using Rhubarb at: ${rhubarbPath}`);
+        // First try to find Rhubarb in backend/bin folder
+        let rhubarbPath = path.join(process.cwd(), 'backend', 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb');
         
-        // Check if dictionary files exist
-        const dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+        // Check if it exists there
+        if (!fs_sync.existsSync(rhubarbPath)) {
+          // If not, try the root bin folder
+          rhubarbPath = path.join(process.cwd(), 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb');
+          
+          // If still not found, log but continue (will throw later if neither exists)
+          if (!fs_sync.existsSync(rhubarbPath)) {
+            console.log(`Rhubarb not found in backend/bin or bin folder, but will attempt anyway with: ${rhubarbPath}`);
+          } else {
+            console.log(`Rhubarb found in root bin folder: ${rhubarbPath}`);
+          }
+        } else {
+          console.log(`Rhubarb found in backend/bin folder: ${rhubarbPath}`);
+        }
+        
+        // Check if dictionary files exist - first in backend, then in root
+        let dictPath = path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+        if (!fs_sync.existsSync(dictPath)) {
+          dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+        }
+        
         const exists = fs_sync.existsSync(dictPath);
         console.log(`Dictionary file exists: ${exists}, path: ${dictPath}`);
       
@@ -665,18 +684,52 @@ const setupTools = async () => {
       console.log('Warning: The application will run without proper lip sync capability');
     }
     
-    // Check for Rhubarb executable
-    const binDir = path.join(process.cwd(), 'bin');
+    // Check for Rhubarb executable in both possible locations
     const rhubarb = process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb';
-    const rhubarbPath = path.join(binDir, rhubarb);
+    
+    // First try backend/bin
+    let rhubarbPath = path.join(process.cwd(), 'backend', 'bin', rhubarb);
+    let found = false;
     
     try {
       await fs.access(rhubarbPath);
       console.log(`Rhubarb found at ${rhubarbPath}`);
+      found = true;
     } catch (error) {
-      console.warn(`Rhubarb not found at ${rhubarbPath}. Lip sync will be disabled.`);
-      console.warn(`To enable lip sync, please download Rhubarb from https://github.com/DanielSWolf/rhubarb-lip-sync/releases`);
-      console.warn(`and place the executable in the bin directory.`);
+      // If not found in backend/bin, try root bin
+      rhubarbPath = path.join(process.cwd(), 'bin', rhubarb);
+      try {
+        await fs.access(rhubarbPath);
+        console.log(`Rhubarb found at ${rhubarbPath}`);
+        found = true;
+      } catch (error) {
+        console.warn(`Rhubarb not found at ${rhubarbPath} or in backend/bin. Lip sync will be disabled.`);
+        console.warn(`To enable lip sync, please download Rhubarb from https://github.com/DanielSWolf/rhubarb-lip-sync/releases`);
+        console.warn(`and place the executable in the bin directory.`);
+      }
+    }
+    
+    // If found, also check for dictionary files
+    if (found) {
+      // First check backend/bin/res
+      let dictPath = path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+      let dictExists = false;
+      
+      try {
+        await fs.access(dictPath);
+        console.log(`Dictionary file found at ${dictPath}`);
+        dictExists = true;
+      } catch (error) {
+        // If not found, check root bin/res
+        dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
+        try {
+          await fs.access(dictPath);
+          console.log(`Dictionary file found at ${dictPath}`);
+          dictExists = true;
+        } catch (error) {
+          console.warn(`Dictionary file not found. Lip sync may not work properly.`);
+        }
+      }
     }
   } catch (error) {
     console.error('Error setting up tools:', error);
