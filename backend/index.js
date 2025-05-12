@@ -76,14 +76,14 @@ const execCommand = (command) => {
 
 const lipSyncMessage = async (message) => {
   try {
-  const time = new Date().getTime();
-  console.log(`Starting conversion for message ${message}`);
+    const time = new Date().getTime();
+    console.log(`Starting conversion for message ${message}`);
     
     try {
-  await execCommand(
-    `ffmpeg -y -i audios/message_${message}.mp3 audios/message_${message}.wav`
-  );
-  console.log(`Conversion done in ${new Date().getTime() - time}ms`);
+      await execCommand(
+        `ffmpeg -y -i audios/message_${message}.mp3 audios/message_${message}.wav`
+      );
+      console.log(`Conversion done in ${new Date().getTime() - time}ms`);
       
       // Try to use Rhubarb directly, like in original implementation
       try {
@@ -118,6 +118,13 @@ const lipSyncMessage = async (message) => {
             fs_sync.chmodSync(rhubarbPath, 0o755);
             console.log('Permissions updated');
           }
+          
+          // Try to determine if it's a real binary or our placeholder script
+          const fileSize = stats.size;
+          console.log(`Rhubarb file size: ${fileSize} bytes`);
+          if (fileSize < 1000) {
+            console.log('Found small Rhubarb file, likely a placeholder script');
+          }
         } catch (statError) {
           console.error('Error checking Rhubarb permissions:', statError);
         }
@@ -141,21 +148,42 @@ const lipSyncMessage = async (message) => {
         
         const exists = dictPath !== null;
         console.log(`Dictionary file exists: ${exists}, path: ${dictPath || 'not found'}`);
+        
+        // Make sure output directory exists
+        const outputDir = path.dirname(`audios/message_${message}.json`);
+        if (!fs_sync.existsSync(outputDir)) {
+          fs_sync.mkdirSync(outputDir, { recursive: true });
+          console.log(`Created output directory: ${outputDir}`);
+        }
       
-        const command = `"${rhubarbPath}" -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`;
+        // Construct and run command
+        const jsonPath = path.join(process.cwd(), 'audios', `message_${message}.json`);
+        const command = `"${rhubarbPath}" -f json -o "${jsonPath}" "audios/message_${message}.wav" -r phonetic`;
         console.log(`Running command: ${command}`);
         
         await execCommand(command);
         console.log(`Lip sync done in ${new Date().getTime() - time}ms`);
         
         // Verify the output file was created
-        const jsonPath = path.join(process.cwd(), 'audios', `message_${message}.json`);
         const jsonExists = fs_sync.existsSync(jsonPath);
         console.log(`Lip sync JSON file exists: ${jsonExists}, path: ${jsonPath}`);
         
         if (jsonExists) {
           const content = await fs.readFile(jsonPath, 'utf8');
           console.log(`Lip sync JSON content: ${content}`);
+          
+          // Check if the content is valid JSON with mouthCues
+          try {
+            const parsed = JSON.parse(content);
+            if (!parsed.mouthCues || !Array.isArray(parsed.mouthCues) || parsed.mouthCues.length < 2) {
+              throw new Error('Invalid lip sync data structure');
+            }
+          } catch (jsonError) {
+            console.error('Invalid lip sync JSON, falling back to artificial lip sync:', jsonError);
+            throw new Error('Invalid lip sync JSON');
+          }
+        } else {
+          throw new Error('Lip sync JSON file was not created');
         }
       } catch (rhubarbError) {
         console.error('Error running Rhubarb:', rhubarbError);
