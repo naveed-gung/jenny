@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "cd frontend && npm install && npm run build",
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install",
     "dev": "npm-run-all --parallel frontend backend",
     "frontend": "cd frontend && npm run dev",
     "backend": "cd backend && npm run dev",

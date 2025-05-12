@@ -94,7 +94,7 @@ const lipSyncMessage = async (message) => {
         const dictPath = path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict');
         const exists = fs_sync.existsSync(dictPath);
         console.log(`Dictionary file exists: ${exists}, path: ${dictPath}`);
-        
+      
         const command = `"${rhubarbPath}" -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`;
         console.log(`Running command: ${command}`);
         
