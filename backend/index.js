@@ -76,41 +76,71 @@ const execCommand = (command) => {
 
 const lipSyncMessage = async (message) => {
   try {
-  const time = new Date().getTime();
-  console.log(`Starting conversion for message ${message}`);
+    const time = new Date().getTime();
+    console.log(`Starting conversion for message ${message}`);
+    
+    // Make sure audio directories exist
+    const audioDir = process.env.AUDIO_DIRECTORY || path.join(process.cwd(), 'audios');
+    if (!fs_sync.existsSync(audioDir)) {
+      fs_sync.mkdirSync(audioDir, { recursive: true });
+    }
+    
+    const inputFile = path.join(audioDir, `message_${message}.mp3`);
+    const outputWav = path.join(audioDir, `message_${message}.wav`);
+    const outputJson = path.join(audioDir, `message_${message}.json`);
     
     try {
-  await execCommand(
-    `ffmpeg -y -i ${process.env.AUDIO_DIRECTORY || 'audios'}/message_${message}.mp3 ${process.env.AUDIO_DIRECTORY || 'audios'}/message_${message}.wav`
-  );
-  console.log(`Conversion done in ${new Date().getTime() - time}ms`);
+      // Check if the input file exists
+      if (!fs_sync.existsSync(inputFile)) {
+        console.error(`Input MP3 file not found: ${inputFile}`);
+        throw new Error(`Input file not found: ${inputFile}`);
+      }
+      
+      // Convert MP3 to WAV
+      await execCommand(`ffmpeg -y -i "${inputFile}" "${outputWav}"`);
+      console.log(`Conversion done in ${new Date().getTime() - time}ms`);
       
       // Try to use Rhubarb directly, like in original implementation
       try {
-        const rhubarbPath = path.join(process.env.BIN_DIRECTORY || path.join(process.cwd(), 'backend', 'bin'), process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb');
+        const binDir = process.env.BIN_DIRECTORY || path.join(process.cwd(), 'backend', 'bin');
+        const rhubarbExe = process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb';
+        const rhubarbPath = path.join(binDir, rhubarbExe);
+        
+        // Check if Rhubarb exists
+        if (!fs_sync.existsSync(rhubarbPath)) {
+          console.error(`Rhubarb executable not found: ${rhubarbPath}`);
+          throw new Error(`Rhubarb not found at ${rhubarbPath}`);
+        }
+        
         console.log(`Using Rhubarb at: ${rhubarbPath}`);
         
         // Check if dictionary files exist
-        const dictPath = path.join(process.env.BIN_DIRECTORY || path.join(process.cwd(), 'backend', 'bin'), 'res', 'sphinx', 'cmudict-en-us.dict');
+        const dictPath = path.join(binDir, 'res', 'sphinx', 'cmudict-en-us.dict');
         const exists = fs_sync.existsSync(dictPath);
         console.log(`Dictionary file exists: ${exists}, path: ${dictPath}`);
-      
-        const audioPath = path.join(process.env.AUDIO_DIRECTORY || 'audios', `message_${message}.wav`);
-        const outputPath = path.join(process.env.AUDIO_DIRECTORY || 'audios', `message_${message}.json`);
         
-        const command = `"${rhubarbPath}" -f json -o "${outputPath}" "${audioPath}" -r phonetic`;
+        // Make Rhubarb executable on Linux/Mac
+        if (process.platform !== 'win32') {
+          try {
+            await execCommand(`chmod 755 "${rhubarbPath}"`);
+            console.log('Set executable permissions for Rhubarb');
+          } catch (chmodError) {
+            console.error('Error setting executable permissions:', chmodError);
+          }
+        }
+        
+        const command = `"${rhubarbPath}" -f json -o "${outputJson}" "${outputWav}" -r phonetic`;
         console.log(`Running command: ${command}`);
         
         await execCommand(command);
         console.log(`Lip sync done in ${new Date().getTime() - time}ms`);
         
         // Verify the output file was created
-        const jsonPath = path.join(process.env.AUDIO_DIRECTORY || path.join(process.cwd(), 'audios'), `message_${message}.json`);
-        const jsonExists = fs_sync.existsSync(jsonPath);
-        console.log(`Lip sync JSON file exists: ${jsonExists}, path: ${jsonPath}`);
+        const jsonExists = fs_sync.existsSync(outputJson);
+        console.log(`Lip sync JSON file exists: ${jsonExists}, path: ${outputJson}`);
         
         if (jsonExists) {
-          const content = await fs.readFile(jsonPath, 'utf8');
+          const content = await fs.readFile(outputJson, 'utf8');
           console.log(`Lip sync JSON content: ${content}`);
         }
       } catch (rhubarbError) {
@@ -118,7 +148,7 @@ const lipSyncMessage = async (message) => {
         console.log('Falling back to artificial lip sync');
         
         // Get audio duration using ffprobe
-        const durationCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ${process.env.AUDIO_DIRECTORY || 'audios'}/message_${message}.wav`;
+        const durationCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${outputWav}"`;
         const durationStr = await execCommand(durationCommand);
         const duration = parseFloat(durationStr.trim());
         
@@ -126,7 +156,7 @@ const lipSyncMessage = async (message) => {
         
         // Generate artificial lip sync data
         const lipSyncData = generateLipSyncData(duration);
-        await fs.writeFile(`${process.env.AUDIO_DIRECTORY || 'audios'}/message_${message}.json`, JSON.stringify(lipSyncData));
+        await fs.writeFile(outputJson, JSON.stringify(lipSyncData));
         console.log(`Generated artificial lip sync data`);
       }
       
@@ -139,13 +169,15 @@ const lipSyncMessage = async (message) => {
           { start: 0.2, end: 0.4, value: "A" }
         ] 
       };
-      await fs.writeFile(`${process.env.AUDIO_DIRECTORY || 'audios'}/message_${message}.json`, JSON.stringify(emptyLipSync));
+      await fs.writeFile(outputJson, JSON.stringify(emptyLipSync));
     }
   } catch (error) {
     console.error(`Error in lipSyncMessage:`, error);
     // Create a fallback empty lip sync file
+    const audioDir = process.env.AUDIO_DIRECTORY || path.join(process.cwd(), 'audios');
+    const outputJson = path.join(audioDir, `message_${message}.json`);
     const emptyLipSync = { mouthCues: [] };
-    await fs.writeFile(`${process.env.AUDIO_DIRECTORY || 'audios'}/message_${message}.json`, JSON.stringify(emptyLipSync));
+    await fs.writeFile(outputJson, JSON.stringify(emptyLipSync));
   }
 };
 
@@ -664,17 +696,73 @@ app.post("/chat", async (req, res) => {
 });
 
 const readJsonTranscript = async (file) => {
-  const filePath = path.isAbsolute(file) ? file : path.join(process.env.AUDIO_DIRECTORY || process.cwd(), file);
+  // Fix path handling to prevent duplicate "audios" folder in path
+  let filePath;
+  if (path.isAbsolute(file)) {
+    filePath = file;
+  } else if (file.startsWith('audios/')) {
+    // If the file already starts with 'audios/', don't add it again
+    filePath = path.join(process.env.AUDIO_DIRECTORY || process.cwd(), file);
+  } else {
+    filePath = path.join(process.env.AUDIO_DIRECTORY || process.cwd(), file);
+  }
+  
   console.log(`Reading JSON from: ${filePath}`);
-  const data = await fs.readFile(filePath, "utf8");
-  return JSON.parse(data);
+  try {
+    const data = await fs.readFile(filePath, "utf8");
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`Error reading JSON file ${filePath}:`, error.message);
+    // If the error is file not found, try an alternative path without "audios" duplication
+    if (error.code === 'ENOENT' && filePath.includes('audios/audios/')) {
+      const fixedPath = filePath.replace('audios/audios/', 'audios/');
+      console.log(`Trying alternative path: ${fixedPath}`);
+      try {
+        const data = await fs.readFile(fixedPath, "utf8");
+        return JSON.parse(data);
+      } catch (innerError) {
+        console.error(`Error reading JSON from alternative path ${fixedPath}:`, innerError.message);
+        throw error; // Throw the original error if alternative also fails
+      }
+    } else {
+      throw error;
+    }
+  }
 };
 
 const audioFileToBase64 = async (file) => {
-  const filePath = path.isAbsolute(file) ? file : path.join(process.env.AUDIO_DIRECTORY || process.cwd(), file);
+  // Fix path handling to prevent duplicate "audios" folder in path
+  let filePath;
+  if (path.isAbsolute(file)) {
+    filePath = file;
+  } else if (file.startsWith('audios/')) {
+    // If the file already starts with 'audios/', don't add it again
+    filePath = path.join(process.env.AUDIO_DIRECTORY || process.cwd(), file);
+  } else {
+    filePath = path.join(process.env.AUDIO_DIRECTORY || process.cwd(), file);
+  }
+  
   console.log(`Reading audio from: ${filePath}`);
-  const data = await fs.readFile(filePath);
-  return data.toString("base64");
+  try {
+    const data = await fs.readFile(filePath);
+    return data.toString("base64");
+  } catch (error) {
+    console.error(`Error reading audio file ${filePath}:`, error.message);
+    // If the error is file not found, try an alternative path without "audios" duplication
+    if (error.code === 'ENOENT' && filePath.includes('audios/audios/')) {
+      const fixedPath = filePath.replace('audios/audios/', 'audios/');
+      console.log(`Trying alternative path: ${fixedPath}`);
+      try {
+        const data = await fs.readFile(fixedPath);
+        return data.toString("base64");
+      } catch (innerError) {
+        console.error(`Error reading audio from alternative path ${fixedPath}:`, innerError.message);
+        throw error; // Throw the original error if alternative also fails
+      }
+    } else {
+      throw error;
+    }
+  }
 };
 
 // Function to check if FFmpeg is installed and available
@@ -738,6 +826,17 @@ const setupTools = async () => {
     try {
       await fs.access(rhubarbPath);
       console.log(`Rhubarb found at ${rhubarbPath}`);
+      
+      // Make Rhubarb executable on Linux/Mac
+      if (process.platform !== 'win32') {
+        try {
+          // Set executable permissions (rwxr-xr-x)
+          await execCommand(`chmod 755 "${rhubarbPath}"`);
+          console.log('Set executable permissions for Rhubarb');
+        } catch (chmodError) {
+          console.error('Error setting executable permissions for Rhubarb:', chmodError);
+        }
+      }
     } catch (error) {
       console.warn(`Rhubarb not found at ${rhubarbPath}. Lip sync will be disabled.`);
       console.warn(`To enable lip sync, please download Rhubarb from https://github.com/DanielSWolf/rhubarb-lip-sync/releases`);
