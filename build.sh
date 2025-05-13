@@ -10,7 +10,7 @@ npm run install-all
 
 # Copy frontend build to root for server.js to serve
 rm -rf frontend/dist
-cp -r frontend/dist ../frontend/dist
+cp -r frontend/dist ./frontend/dist
 
 # Download and set up Rhubarb
 echo "Setting up Rhubarb for lip sync..."
