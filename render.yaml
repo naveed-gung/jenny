@@ -23,4 +23,4 @@ services:
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_URL
-        value: "https://jenny-90fq.onrender.com/api" 
+        value: "https://jenny.onrender.com/api"

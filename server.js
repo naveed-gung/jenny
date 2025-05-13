@@ -41,6 +41,6 @@ frontendApp.get('*', (req, res) => {
 const PORT = process.env.PORT || 10000;
 const server = createServer(frontendApp);
 
-server.listen(PORT, () => {
-  console.log(`Unified server running on port ${PORT}`);
-}); 
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Unified server running on port ${PORT} at 0.0.0.0`);
+});
