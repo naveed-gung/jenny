@@ -5,9 +5,12 @@ echo "Installing dependencies..."
 npm run install-all
 
 # Build the frontend
-echo "Building frontend..."
-cd frontend && npm run build
-cd ..
+ echo "Building frontend..."
+ cd frontend && npm install && npm run build && cd ..
+
+# Copy frontend build to root for server.js to serve
+rm -rf frontend/dist
+cp -r frontend/dist ../frontend/dist
 
 # Download and set up Rhubarb
 echo "Setting up Rhubarb for lip sync..."
@@ -105,4 +108,4 @@ else
   echo "✗ Phonemes directory is missing"
 fi
 
-echo "Build completed successfully!" 
+echo "Build completed successfully!"
