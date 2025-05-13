@@ -1,16 +1,22 @@
-# Jenny - 3D Avatar Chat Application
+# Jenny - 3D AI Avatar Chat Application 🤖 💬
 
-A 3D avatar chat application using React Three Fiber, featuring text-to-speech with lip sync and Google's Gemini API.
+<div align="center">
+  <img src="frontend/public/image.png" alt="Jenny AI Avatar" width="600px">
+</div>
 
-## Features
+## ✨ Features
 
-- 3D avatar that speaks with synchronized lip movements
-- Text-to-speech using ElevenLabs API
-- AI chat responses powered by Google's Gemini API
-- Multiple voice options
-- Voice pitch, speed, and volume control
+- 🎭 Expressive 3D avatar with synchronized lip movements
+- 🔊 Text-to-speech with ElevenLabs API for natural voices
+- 🧠 AI-powered conversations using Google's Gemini API
+- 🎙️ Multiple voice types with customizable settings
+- 🎛️ Adjustable voice pitch, speed, and volume
 
-## Installation & Setup
+## 🚀 Demo
+
+Check out the live demo: [Jenny AI Avatar Demo](https://jenny-90fq.onrender.com)
+
+## 🛠️ Installation & Setup
 
 ### Prerequisites
 - Node.js (v14+)
@@ -18,62 +24,72 @@ A 3D avatar chat application using React Three Fiber, featuring text-to-speech w
 
 ### Local Development
 
-1. Clone the repository
+1. **Clone the repository**
 ```bash
 git clone https://github.com/naveed-gung/jenny.git
 cd jenny
 ```
 
-2. Install dependencies
+2. **Install all dependencies at once**
 ```bash
-# Install backend dependencies
-cd backend
-npm install
-cd ..
-
-# Install frontend dependencies
-cd frontend
-npm install
+npm run install-all
 ```
 
-3. Create a `.env` file in the backend directory with the following:
+3. **Create a `.env` file in the backend directory with:**
 ```
 ELEVEN_LABS_API_KEY=your_elevenlabs_api_key
 GEMINI_API_KEY=your_gemini_api_key
-SPEECHGEN_API_KEY=your_speechgen_api_key
-SPEECHGEN_EMAIL=your_speechgen_email
+SPEECHGEN_API_KEY=your_speechgen_api_key  # Optional, for child voice
+SPEECHGEN_EMAIL=your_speechgen_email      # Optional, for child voice
 ```
 
-4. Start the backend server
+4. **Start development servers**
 ```bash
-cd backend
-npm start
-```
-
-5. Start the frontend development server
-```bash
-cd frontend
 npm run dev
 ```
 
-6. Open your browser and navigate to `http://localhost:5173`
+5. **Open your browser** and navigate to `http://localhost:5173`
 
-## Deployment on Render
+## 🌟 Key Features Explained
 
-This repository includes a `render.yaml` file for easy deployment on Render.com:
+### Lifelike Speech with Lip Sync
+The avatar uses ElevenLabs' realistic voice synthesis combined with lip synchronization to create a natural speaking experience. The lip sync is powered by Rhubarb Lip Sync technology.
+
+### Expressive Animations
+Different emotions and expressions (happy, sad, surprised) are triggered based on conversational context, making interactions feel more human.
+
+### Voice Customization
+Choose from different voice types (default, male, child) and adjust pitch, speed, and volume to personalize your experience.
+
+## 🌐 Deployment on Render
+
+This repository includes a `render.yaml` file for easy deployment:
 
 1. Push your code to GitHub
-2. Sign up for a Render account at [render.com](https://render.com/)
-3. Click "New" and select "Blueprint"
-4. Connect your GitHub repository
-5. Render will automatically detect the `render.yaml` configuration
-6. Set required environment variables:
-   - ELEVEN_LABS_API_KEY
-   - GEMINI_API_KEY
-   - SPEECHGEN_API_KEY
-   - SPEECHGEN_EMAIL
-7. Deploy!
+2. Sign up for a Render account
+3. Create a new Blueprint, pointing to your repository
+4. Set the required environment variables
+5. Deploy and enjoy!
 
-## Credits
+## 💻 Technologies Used
+
+- **Frontend**: React, Three.js, React Three Fiber, TailwindCSS
+- **Backend**: Node.js, Express
+- **APIs**: Google Gemini API, ElevenLabs API, SpeechGen API
+- **3D**: GLB models, animations, Three.js
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📝 License
+
+This project is licensed under the ISC License
+
+## 👨‍💻 Credits
 
 Created by Naveed Sohail Gung
+
+---
+
+If you like this project, please give it a ⭐ on GitHub!
