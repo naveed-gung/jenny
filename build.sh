@@ -5,12 +5,17 @@ echo "Installing dependencies..."
 npm run install-all
 
 # Build the frontend
- echo "Building frontend..."
- cd frontend && npm install && npm run build && cd ..
+echo "Building frontend..."
+cd frontend && npm install && npm run build && cd ..
 
-# Copy frontend build to root for server.js to serve
-rm -rf frontend/dist
-cp -r frontend/dist ./frontend/dist
+# Ensure frontend/dist exists for server.js to serve
+echo "Verifying frontend build directory..."
+if [ -d "frontend/dist" ]; then
+  echo "✓ Frontend build directory exists"
+else
+  echo "✗ Frontend build directory not found. Build may have failed."
+  exit 1
+fi
 
 # Download and set up Rhubarb
 echo "Setting up Rhubarb for lip sync..."
