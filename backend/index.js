@@ -102,6 +102,8 @@ const lipSyncMessage = async (message) => {
             rhubarbPath = p;
             console.log(`Found Rhubarb at: ${rhubarbPath}`);
             break;
+          } else {
+            console.log(`Not found at: ${p}`);
           }
         }
         
@@ -118,18 +120,12 @@ const lipSyncMessage = async (message) => {
             fs_sync.chmodSync(rhubarbPath, 0o755);
             console.log('Permissions updated');
           }
-          
-          // Try to determine if it's a real binary or our placeholder script
-          const fileSize = stats.size;
-          console.log(`Rhubarb file size: ${fileSize} bytes`);
-          if (fileSize < 1000) {
-            console.log('Found small Rhubarb file, likely a placeholder script');
-          }
         } catch (statError) {
           console.error('Error checking Rhubarb permissions:', statError);
         }
         
-        // Check if dictionary files exist - first in backend, then in root
+        // Check all possible dictionary file locations
+        console.log("Checking all possible dictionary file locations:");
         let dictPath = null;
         const possibleDictPaths = [
           path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
@@ -139,15 +135,15 @@ const lipSyncMessage = async (message) => {
         ];
         
         for (const p of possibleDictPaths) {
+          console.log(`Checking: ${p}`);
           if (fs_sync.existsSync(p)) {
             dictPath = p;
-            console.log(`Found dictionary at: ${dictPath}`);
+            console.log(`✓ Dictionary file found at: ${dictPath}`);
             break;
+          } else {
+            console.log(`✗ Not found at: ${p}`);
           }
         }
-        
-        const exists = dictPath !== null;
-        console.log(`Dictionary file exists: ${exists}, path: ${dictPath || 'not found'}`);
         
         // Make sure output directory exists
         const outputDir = path.dirname(`audios/message_${message}.json`);
@@ -155,10 +151,13 @@ const lipSyncMessage = async (message) => {
           fs_sync.mkdirSync(outputDir, { recursive: true });
           console.log(`Created output directory: ${outputDir}`);
         }
-      
-        // Construct and run command
+        
+        // Define dictionary directory as an explicit parameter
+        const dictDir = path.dirname(dictPath || possibleDictPaths[0]);
+        
+        // Construct and run command with explicit dictionary directory
         const jsonPath = path.join(process.cwd(), 'audios', `message_${message}.json`);
-        const command = `"${rhubarbPath}" -f json -o "${jsonPath}" "audios/message_${message}.wav" -r phonetic`;
+        const command = `"${rhubarbPath}" -f json -o "${jsonPath}" --recognizer phonetic --dialogFile "${dictPath}" "audios/message_${message}.wav"`;
         console.log(`Running command: ${command}`);
         
         await execCommand(command);
@@ -169,15 +168,20 @@ const lipSyncMessage = async (message) => {
         console.log(`Lip sync JSON file exists: ${jsonExists}, path: ${jsonPath}`);
         
         if (jsonExists) {
-          const content = await fs.readFile(jsonPath, 'utf8');
-          console.log(`Lip sync JSON content: ${content}`);
-          
-          // Check if the content is valid JSON with mouthCues
           try {
+            const content = await fs.readFile(jsonPath, 'utf8');
+            const contentPreview = content.length > 100 ? content.substring(0, 100) + '...' : content;
+            console.log(`Lip sync JSON content preview: ${contentPreview}`);
+            
+            // Check if the content is valid JSON with mouthCues
             const parsed = JSON.parse(content);
             if (!parsed.mouthCues || !Array.isArray(parsed.mouthCues) || parsed.mouthCues.length < 2) {
+              console.error('Invalid lip sync data structure:', parsed);
               throw new Error('Invalid lip sync data structure');
             }
+            
+            console.log(`Valid lip sync data with ${parsed.mouthCues.length} mouth cues`);
+            return jsonPath;
           } catch (jsonError) {
             console.error('Invalid lip sync JSON, falling back to artificial lip sync:', jsonError);
             throw new Error('Invalid lip sync JSON');
@@ -198,10 +202,14 @@ const lipSyncMessage = async (message) => {
         
         // Generate artificial lip sync data
         const lipSyncData = generateLipSyncData(duration);
-        await fs.writeFile(`audios/message_${message}.json`, JSON.stringify(lipSyncData));
-        console.log(`Generated artificial lip sync data`);
+        
+        // Write artificial lip sync data to file
+        const jsonPath = path.join(process.cwd(), 'audios', `message_${message}.json`);
+        await fs.writeFile(jsonPath, JSON.stringify(lipSyncData));
+        
+        console.log(`Generated artificial lip sync with ${lipSyncData.mouthCues.length} mouth cues`);
+        return jsonPath;
       }
-      
     } catch (error) {
       console.error(`Error in processing: ${error.message}`);
       // Create a fallback lip sync file with default mouth cues
@@ -849,6 +857,180 @@ const setupTools = async () => {
 
 // Call setup at startup instead of separate function calls
 setupTools().catch(console.error);
+
+// Add a debug endpoint for checking lip sync and tool configurations
+app.get("/debug-lipsync", async (req, res) => {
+  try {
+    // Check all possible Rhubarb locations
+    console.log("Checking all possible Rhubarb locations:");
+    const possiblePaths = [
+      path.join(process.cwd(), 'backend', 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb'),
+      path.join(process.cwd(), 'bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb'),
+      path.join('/opt/render/project/src/bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb'),
+      path.join('/opt/render/project/src/backend/bin', process.platform === 'win32' ? 'rhubarb.exe' : 'rhubarb')
+    ];
+    
+    const rhubarbResults = [];
+    for (const p of possiblePaths) {
+      const exists = fs_sync.existsSync(p);
+      rhubarbResults.push({
+        path: p,
+        exists,
+        ...(exists ? { permissions: fs_sync.statSync(p).mode.toString(8) } : {})
+      });
+      console.log(`${exists ? '✓' : '✗'} ${exists ? 'Found' : 'Not found'} at: ${p}`);
+    }
+    
+    // Check all possible dictionary file locations
+    console.log("Checking all possible dictionary file locations:");
+    const possibleDictPaths = [
+      path.join(process.cwd(), 'backend', 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
+      path.join(process.cwd(), 'bin', 'res', 'sphinx', 'cmudict-en-us.dict'),
+      path.join('/opt/render/project/src/bin/res/sphinx', 'cmudict-en-us.dict'),
+      path.join('/opt/render/project/src/backend/bin/res/sphinx', 'cmudict-en-us.dict')
+    ];
+    
+    const dictResults = [];
+    for (const p of possibleDictPaths) {
+      const exists = fs_sync.existsSync(p);
+      dictResults.push({
+        path: p,
+        exists,
+        ...(exists ? { 
+          size: fs_sync.statSync(p).size,
+          sample: fs_sync.readFileSync(p, 'utf8').substring(0, 100) + '...'
+        } : {})
+      });
+      console.log(`${exists ? '✓' : '✗'} ${exists ? 'Found' : 'Not found'} at: ${p}`);
+    }
+    
+    // Check for other files in the sphinx directory
+    const sphinxDir = path.dirname(possibleDictPaths.find(p => fs_sync.existsSync(p)) || possibleDictPaths[0]);
+    let sphinxFiles = [];
+    if (fs_sync.existsSync(sphinxDir)) {
+      sphinxFiles = fs_sync.readdirSync(sphinxDir);
+    }
+    
+    // Check audio directory
+    let audioDir = path.join(process.cwd(), 'audios');
+    let audioFiles = [];
+    let audioDirectoryExists = false;
+    if (fs_sync.existsSync(audioDir)) {
+      audioDirectoryExists = true;
+      audioFiles = fs_sync.readdirSync(audioDir).slice(0, 10); // Just get the first 10 files
+    }
+    
+    // Check ffmpeg
+    let ffmpegAvailable = false;
+    try {
+      const ffmpegResult = await execCommand('ffmpeg -version');
+      ffmpegAvailable = ffmpegResult.includes('ffmpeg version');
+    } catch (e) {
+      ffmpegAvailable = false;
+    }
+    
+    // Try to generate test lip sync
+    let testLipSyncResult = null;
+    if (ffmpegAvailable) {
+      try {
+        // Create a simple test audio file
+        const testAudioPath = path.join(audioDir, 'test_audio.wav');
+        await execCommand('ffmpeg -f lavfi -i "sine=frequency=440:duration=1" -c:a pcm_s16le ' + testAudioPath);
+        
+        // Find Rhubarb path
+        const rhubarbPath = possiblePaths.find(p => fs_sync.existsSync(p));
+        
+        if (rhubarbPath) {
+          // Find dictionary path
+          const dictPath = possibleDictPaths.find(p => fs_sync.existsSync(p));
+          
+          if (dictPath) {
+            // Try to run Rhubarb on the test audio
+            const testJsonPath = path.join(audioDir, 'test_lipsync.json');
+            const command = `"${rhubarbPath}" -f json -o "${testJsonPath}" --recognizer phonetic --dialogFile "${dictPath}" "${testAudioPath}"`;
+            
+            try {
+              await execCommand(command);
+              
+              // Check the output
+              if (fs_sync.existsSync(testJsonPath)) {
+                const jsonContent = fs_sync.readFileSync(testJsonPath, 'utf8');
+                const parsed = JSON.parse(jsonContent);
+                testLipSyncResult = {
+                  success: true,
+                  command,
+                  mouthCues: parsed.mouthCues ? parsed.mouthCues.length : 0,
+                  sample: jsonContent.substring(0, 100) + '...'
+                };
+              } else {
+                testLipSyncResult = {
+                  success: false,
+                  command,
+                  error: 'Output file not created'
+                };
+              }
+            } catch (error) {
+              testLipSyncResult = {
+                success: false,
+                command,
+                error: error.message
+              };
+            }
+          } else {
+            testLipSyncResult = {
+              success: false,
+              error: 'Dictionary file not found'
+            };
+          }
+        } else {
+          testLipSyncResult = {
+            success: false,
+            error: 'Rhubarb not found'
+          };
+        }
+      } catch (e) {
+        testLipSyncResult = {
+          success: false,
+          error: e.message
+        };
+      }
+    }
+    
+    // Return all the debug info
+    res.json({
+      env: {
+        platform: process.platform,
+        nodeVersion: process.version,
+        cwd: process.cwd(),
+        env: process.env.NODE_ENV
+      },
+      rhubarb: {
+        paths: rhubarbResults,
+        foundPath: rhubarbResults.find(r => r.exists)?.path || null
+      },
+      dictionary: {
+        paths: dictResults,
+        foundPath: dictResults.find(r => r.exists)?.path || null,
+        sphinxDir,
+        sphinxFiles
+      },
+      audio: {
+        directoryExists: audioDirectoryExists,
+        directoryPath: audioDir,
+        sampleFiles: audioFiles
+      },
+      tools: {
+        ffmpeg: ffmpegAvailable
+      },
+      testLipSync: testLipSyncResult
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
 
 // Export the app
 export default app;
