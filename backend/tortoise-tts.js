@@ -73,9 +73,25 @@ const installTortoiseTTS = async () => {
       console.log('Created requirements.txt for Tortoise TTS');
     }
 
-    // Install requirements
-    console.log('Installing Tortoise TTS dependencies...');
-    await execCommand('pip install -r ' + requirementsPath);
+    // Create and use a virtual environment for Python packages
+    const venvPath = path.join(process.cwd(), 'venv');
+    const venvBin = process.platform === 'win32' ? 'Scripts' : 'bin';
+    const venvPython = path.join(venvPath, venvBin, process.platform === 'win32' ? 'python.exe' : 'python');
+    const venvPip = path.join(venvPath, venvBin, process.platform === 'win32' ? 'pip.exe' : 'pip');
+    
+    // Check if venv already exists
+    try {
+      await fs.access(venvPath);
+      console.log('Python virtual environment already exists');
+    } catch (error) {
+      // Create virtual environment
+      console.log('Creating Python virtual environment...');
+      await execCommand('python -m venv ' + venvPath);
+    }
+    
+    // Install requirements in the virtual environment
+    console.log('Installing Tortoise TTS dependencies in virtual environment...');
+    await execCommand(`"${venvPip}" install -r ${requirementsPath}`);
     
     // Clone Tortoise TTS repository if not already cloned
     const tortoiseDir = path.join(process.cwd(), 'backend', 'tortoise-tts');
@@ -87,9 +103,9 @@ const installTortoiseTTS = async () => {
       await execCommand('git clone https://github.com/neonbjb/tortoise-tts.git ' + tortoiseDir);
     }
     
-    // Install Tortoise TTS
-    console.log('Installing Tortoise TTS...');
-    await execCommand('pip install -e ' + tortoiseDir);
+    // Install Tortoise TTS in the virtual environment
+    console.log('Installing Tortoise TTS in virtual environment...');
+    await execCommand(`"${venvPip}" install -e ${tortoiseDir}`);
     
     return true;
   } catch (error) {
@@ -99,7 +115,7 @@ const installTortoiseTTS = async () => {
 };
 
 // Generate speech using Tortoise TTS
-const generateSpeechWithTortoise = async (text, messageId, voiceType = 'female') => {
+const generateSpeechWithTortoise = async (text, voiceType, messageId) => {
   try {
     console.log(`Generating speech with Tortoise TTS: "${text.substring(0, 30)}..."`);
     
@@ -108,7 +124,9 @@ const generateSpeechWithTortoise = async (text, messageId, voiceType = 'female')
       default: 'female',
       female: 'female',
       male: 'male',
-      child: 'young_female'
+      child: 'young_female',
+      emma: 'female',
+      daniel: 'male'
     };
     
     const voice = voiceMap[voiceType] || 'female';
@@ -140,9 +158,14 @@ print(f"Audio saved to {output_path}")
     
     await fs.writeFile(scriptPath, scriptContent);
     
-    // Run the Python script
-    console.log('Running Tortoise TTS...');
-    await execCommand('python ' + scriptPath);
+    // Get the virtual environment Python path
+    const venvPath = path.join(process.cwd(), 'venv');
+    const venvBin = process.platform === 'win32' ? 'Scripts' : 'bin';
+    const venvPython = path.join(venvPath, venvBin, process.platform === 'win32' ? 'python.exe' : 'python');
+    
+    // Run the Python script with the virtual environment's Python
+    console.log('Running Tortoise TTS with virtual environment...');
+    await execCommand(`"${venvPython}" ${scriptPath}`);
     
     // Clean up the script
     await fs.unlink(scriptPath);
@@ -164,7 +187,9 @@ print(f"Audio saved to {output_path}")
 
 // Simple fallback method that generates a silent audio file
 // This is used when all TTS methods fail
-const generateSilentAudio = async (duration = 1, messageId) => {
+const generateSilentAudio = async (text, voiceType, messageId) => {
+  // Calculate duration based on text length (approximately 1 second per 10 characters)
+  const duration = text ? Math.max(1, text.length / 10) : 1;
   try {
     console.log(`Generating silent audio for message ${messageId}`);
     const outputPath = path.join(TORTOISE_OUTPUT_DIR, `message_${messageId}.mp3`);
@@ -185,14 +210,22 @@ const generateSilentAudio = async (duration = 1, messageId) => {
 
 // Initialize Tortoise TTS
 const initTortoiseTTS = async () => {
-  await ensureDirs();
-  const pythonInstalled = await checkPythonInstallation();
-  
-  if (pythonInstalled) {
-    return await installTortoiseTTS();
+  try {
+    await ensureDirs();
+    console.log('Checking Python installation...');
+    const pythonInstalled = await checkPythonInstallation();
+    
+    if (pythonInstalled) {
+      console.log('Python is installed, setting up Tortoise TTS with virtual environment...');
+      return await installTortoiseTTS();
+    } else {
+      console.log('Python is not installed, Tortoise TTS will not be available');
+      return false;
+    }
+  } catch (error) {
+    console.error('Tortoise TTS initialization failed', error);
+    return false;
   }
-  
-  return false;
 };
 
 export {
