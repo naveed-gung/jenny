@@ -17,6 +17,18 @@ else
   exit 1
 fi
 
+# Install Python dependencies for Tortoise TTS if enabled
+if [ "$USE_TORTOISE_TTS" = "true" ]; then
+  echo "Installing Python dependencies for Tortoise TTS..."
+  if command -v python3 &> /dev/null; then
+    python3 -m pip install -r backend/requirements.txt
+  elif command -v python &> /dev/null; then
+    python -m pip install -r backend/requirements.txt
+  else
+    echo "Python not found, skipping Tortoise TTS installation"
+  fi
+fi
+
 # Download and set up Rhubarb
 echo "Setting up Rhubarb for lip sync..."
 mkdir -p bin/res/sphinx

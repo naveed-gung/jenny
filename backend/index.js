@@ -1,25 +1,26 @@
 import { exec } from "child_process";
 import cors from "cors";
 import dotenv from "dotenv";
-import voice from "elevenlabs-node";
 import express from "express";
 import { promises as fs } from "fs";
 import fs_sync from "fs"; // Add synchronous fs methods
 import fetch from "node-fetch";
 import path from "path";
+// Import Tortoise TTS functions
+import { generateSpeechWithTortoise, generateSilentAudio, initTortoiseTTS } from './tortoise-tts';
 dotenv.config();
 
 // Gemini API key (replacing Hugging Face)
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
-const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
+// SpeechGen for child voice
 const speechGenApiKey = process.env.SPEECHGEN_API_KEY;
 const speechGenEmail = process.env.SPEECHGEN_EMAIL;
-const voiceID = "kgG7dCoKCfLehAPWkJOE";
 
+// Voice mapping for Tortoise TTS
 const voiceMapping = {
-  default: "jsCqWAovK2LkecY7zXl4", 
-  male: "29vD33N1CtxCmqQRPOHJ",    
+  default: "emma", // Female voice for Tortoise
+  male: "daniel", // Male voice for Tortoise
   child: "speechgen_child" // Special identifier for SpeechGen child voice  
 };
 
@@ -61,8 +62,13 @@ app.get("/test-gemini", async (req, res) => {
   }
 });
 
+// Voice list endpoint now returns Tortoise voices
 app.get("/voices", async (req, res) => {
-  res.send(await voice.getVoices(elevenLabsApiKey));
+  res.send([
+    { voice_id: "emma", name: "Emma (Female)" },
+    { voice_id: "daniel", name: "Daniel (Male)" },
+    { voice_id: "speechgen_child", name: "Child Voice" }
+  ]);
 });
 
 const execCommand = (command) => {
@@ -409,48 +415,45 @@ const getAIResponse = async (userMessage) => {
   }
 };
 
-// Generate text to speech using ElevenLabs directly with fetch
-const generateSpeech = async (text, voiceId, voicePitch = 1.0) => {
+// Generate text to speech using Tortoise TTS
+const generateSpeech = async (text, voiceType = "default", voicePitch = 1.0) => {
   try {
-    // ElevenLabs doesn't directly support pitch adjustment in their API
-    // We'll just log it but not modify the text
-      console.log(`Applied pitch adjustment: ${voicePitch}`);
+    console.log(`Generating speech with Tortoise TTS: "${text.substring(0, 30)}..." using voice ${voiceType}`);
+    console.log(`Applied pitch adjustment: ${voicePitch}`);
 
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Accept': 'audio/mpeg',
-        'Content-Type': 'application/json',
-        'xi-api-key': elevenLabsApiKey,
-      },
-      body: JSON.stringify({
-        text: text, // Use the original text without modifications
-        model_id: "eleven_monolingual_v1",
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('ElevenLabs API error:', errorData);
-      throw new Error(`ElevenLabs API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    // If this is a child voice, use SpeechGen instead
+    if (voiceType === "child" || voiceType === "speechgen_child") {
+      if (speechGenApiKey && speechGenEmail) {
+        return await generateSpeechGenSpeech(text, 1.0, voicePitch, 100);
+      } else {
+        console.log('SpeechGen API key not found, falling back to Tortoise TTS for child voice');
+      }
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Use Tortoise TTS for all other voices
+    const selectedVoice = voiceMapping[voiceType] || voiceMapping.default;
     
-    // Save the audio file
-    await fs.writeFile(`audios/message_${message_counter}.mp3`, buffer);
-    console.log(`Speech successfully generated and saved as message_${message_counter}.mp3`);
-    
-    return buffer.toString('base64');
+    try {
+      // Generate speech with Tortoise TTS
+      const audioPath = await generateSpeechWithTortoise(text, selectedVoice, message_counter, voicePitch);
+      
+      // Read the generated audio file
+      const buffer = await fs.readFile(audioPath);
+      console.log(`Speech successfully generated and saved as ${path.basename(audioPath)}`);
+      
+      return buffer.toString('base64');
+    } catch (error) {
+      console.error('Error generating speech with Tortoise TTS:', error);
+      
+      // Generate silent audio as last resort
+      const silentAudioPath = await generateSilentAudio(message_counter, text.length / 10); // Estimate duration
+      const buffer = await fs.readFile(silentAudioPath);
+      console.log(`Generated silent audio as fallback: ${path.basename(silentAudioPath)}`);
+      
+      return buffer.toString('base64');
+    }
   } catch (error) {
-    console.error('Error generating speech:', error);
+    console.error('Error in speech generation:', error);
     throw error;
   }
 };
@@ -556,18 +559,10 @@ app.post("/chat", async (req, res) => {
     return;
   }
 
-  if (!elevenLabsApiKey) {
-    res.send({
-      messages: [
-        {
-          text: "Please add your ElevenLabs API key to continue. I need it to generate speech.",
-          facialExpression: "sad",
-          animation: "Talking_0",
-        }
-      ],
-    });
-    return;
-  }
+  // Initialize Tortoise TTS if not already initialized
+await initTortoiseTTS().catch(err => {
+  console.error("Failed to initialize Tortoise TTS:", err);
+});
 
   let messages = [];
 
@@ -730,6 +725,14 @@ const ensureAudioDirectory = async () => {
       // Directory doesn't exist, create it
       await fs.mkdir(binDir, { recursive: true });
       console.log('Created bin directory');
+    }
+    
+    // Initialize Tortoise TTS
+    try {
+      const tortoiseInitialized = await initTortoiseTTS();
+      console.log(`Tortoise TTS initialization ${tortoiseInitialized ? 'successful' : 'failed'}`);
+    } catch (error) {
+      console.error('Error initializing Tortoise TTS:', error);
     }
   } catch (error) {
     console.error('Error ensuring directories exist:', error);

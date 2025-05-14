@@ -13,6 +13,8 @@ services:
         sync: false
       - key: SPEECHGEN_EMAIL
         sync: false
+      - key: USE_TORTOISE_TTS
+        value: "true"
       - key: NODE_ENV
         value: production
 
