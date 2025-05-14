@@ -7,7 +7,7 @@ import fs_sync from "fs"; // Add synchronous fs methods
 import fetch from "node-fetch";
 import path from "path";
 // Import Tortoise TTS functions
-import { generateSpeechWithTortoise, generateSilentAudio, initTortoiseTTS } from './tortoise-tts';
+import { generateSpeechWithTortoise, generateSilentAudio, initTortoiseTTS } from './tortoise-tts.js';
 dotenv.config();
 
 // Gemini API key (replacing Hugging Face)
