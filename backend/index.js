@@ -1,7 +1,6 @@
 import { exec } from "child_process";
 import cors from "cors";
 import dotenv from "dotenv";
-import voice from "elevenlabs-node";
 import express from "express";
 import { promises as fs } from "fs";
 import fs_sync from "fs"; // Add synchronous fs methods
@@ -12,17 +11,15 @@ dotenv.config();
 // Gemini API key (replacing Hugging Face)
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
-// TTS Open API key (replacing ElevenLabs)
+// TTS Open API key 
 const ttsOpenApiKey = process.env.TTS_OPEN_API_KEY || "tts-5c14dd14a1a141b7577ce3fd10f95cff";
 
-const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
-const speechGenApiKey = process.env.SPEECHGEN_API_KEY;
-const speechGenEmail = process.env.SPEECHGEN_EMAIL;
-
+// Voice mapping for different voice types 
+// Using voice IDs compatible with tts.quest API
 const voiceMapping = {
-  default: "en-US-Neural2-F", // TTS Open default female voice
-  male: "en-US-Neural2-D",    // TTS Open male voice
-  child: "speechgen_child"    // Special identifier for SpeechGen child voice  
+  default: "3",  // Default female voice (English)
+  female: "3",   // Female voice (English)
+  male: "10",    // Male voice (English)
 };
 
 // Counter for message files
@@ -64,15 +61,13 @@ app.get("/test-gemini", async (req, res) => {
 });
 
 app.get("/voices", async (req, res) => {
-  // Return a list of available TTS Open voices
-  res.send([
-    { voice_id: "en-US-Neural2-F", name: "Female (Default)" },
-    { voice_id: "en-US-Neural2-D", name: "Male" },
-    { voice_id: "en-US-Neural2-A", name: "Female (Alternative)" },
-    { voice_id: "en-US-Neural2-C", name: "Male (Alternative)" },
-    { voice_id: "en-GB-Neural2-A", name: "British Female" },
-    { voice_id: "en-GB-Neural2-B", name: "British Male" }
-  ]);
+  // Return available TTS voices instead of using elevenlabs
+  res.json({
+    voices: [
+      { id: "3", name: "Female (English)" },
+      { id: "10", name: "Male (English)" }
+    ]
+  });
 });
 
 const execCommand = (command) => {
@@ -422,11 +417,11 @@ const getAIResponse = async (userMessage) => {
 // Generate text to speech using TTS Open API
 const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
   try {
-    // TTS Open API implementation
-    const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(text)}&speaker=${encodeURIComponent(voiceId)}&key=${ttsOpenApiKey}`;
-    
-    // Log parameters without exposing API key
+    // Use TTS Open API for voice generation
     console.log(`Generating speech with TTS Open API: voice=${voiceId}, pitch=${voicePitch}, speed=${voiceSpeed}`);
+    
+    // Use tts.quest API with the provided API key
+    const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(text)}&speaker=${encodeURIComponent(voiceId)}&key=${ttsOpenApiKey}`;
     
     const response = await fetch(url);
 
@@ -443,7 +438,7 @@ const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0,
     }
     
     // Download the audio file from the provided URL
-    const audioResponse = await fetch(result.mp3StreamingUrl);
+    const audioResponse = await fetch(result.mp3StreamingUrl || result.url);
     if (!audioResponse.ok) {
       throw new Error(`Failed to download audio file: ${audioResponse.status}`);
     }
@@ -457,69 +452,7 @@ const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0,
     
     return buffer.toString('base64');
   } catch (error) {
-    console.error('Error generating speech:', error);
-    throw error;
-  }
-};
-
-// Generate speech using SpeechGen.io API for child voice
-const generateSpeechGenSpeech = async (text, voiceSpeed = 1.0, voicePitch = 0, voiceVolume = 100) => {
-  try {
-    console.log(`Generating speech with SpeechGen.io: "${text.substring(0, 30)}..."`);
-    
-    // Prepare data for SpeechGen.io API
-    const data = {
-      token: speechGenApiKey,
-      email: speechGenEmail,
-      voice: 'Carly', // Australian child voice
-      text: text,
-      format: 'mp3',
-      speed: voiceSpeed,
-      pitch: voicePitch, // Convert pitch to SpeechGen format (-20 to 20)
-      emotion: 'good',
-      pause_sentence: 300,
-      pause_paragraph: 400,
-      volume: voiceVolume // Add volume parameter
-    };
-    
-    // Use the quick voice-over API for short texts
-    const url = "https://speechgen.io/index.php?r=api/text";
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams(data).toString()
-    });
-    
-    const result = await response.json();
-    
-    if (result.status === "1") {
-      // Successfully generated speech
-      console.log(`SpeechGen.io response: ${JSON.stringify(result)}`);
-      
-      // Download the audio file
-      const audioResponse = await fetch(result.file);
-      const arrayBuffer = await audioResponse.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      
-      // Save the audio file
-      await fs.writeFile(`audios/message_${message_counter}.mp3`, buffer);
-      console.log(`SpeechGen speech saved as message_${message_counter}.mp3`);
-      
-      return buffer.toString('base64');
-    } else if (result.status === "0") {
-      // Still processing
-      console.log("SpeechGen.io is still processing the request");
-      throw new Error("SpeechGen.io is still processing the request");
-    } else {
-      // Error
-      console.error(`SpeechGen.io API error: ${result.error}`);
-      throw new Error(`SpeechGen.io API error: ${result.error}`);
-    }
-  } catch (error) {
-    console.error('Error generating speech with SpeechGen.io:', error);
+    console.error('Error generating speech with TTS Open API:', error);
     throw error;
   }
 };
@@ -529,10 +462,10 @@ app.post("/chat", async (req, res) => {
   const mode = req.body.mode || "chat";
   const voiceType = req.body.voiceType || "default";
   const voicePitch = req.body.voicePitch || 1.0;
-  const voiceSpeed = req.body.voiceSpeed || 1.0; // Add speed parameter
-  const voiceVolume = req.body.voiceVolume || 100; // Add volume parameter
+  const voiceSpeed = req.body.voiceSpeed || 1.0;
+  const voiceVolume = req.body.voiceVolume || 100;
   
-  const selectedVoiceID = voiceMapping[voiceType] || voiceID;
+  const selectedVoiceID = voiceMapping[voiceType] || voiceMapping.default;
 
   if (!userMessage) {
     // For first-time welcome message, use pre-existing files if available
@@ -562,9 +495,6 @@ app.post("/chat", async (req, res) => {
     }
     return;
   }
-
-  // No need to check for TTS Open API key as we have a default one
-  // Just proceed with the request
 
   let messages = [];
 
@@ -612,28 +542,19 @@ app.post("/chat", async (req, res) => {
     }
 
     // Process messages with audio generation
-  for (let i = 0; i < messages.length; i++) {
-    const message = messages[i];
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
       
       try {
         message_counter = i; 
-        let audioBase64;
-        
-        // Use SpeechGen for child voice, TTS Open API for others
-        if (voiceType === 'child') {
-          // Convert ElevenLabs pitch (0.5-1.5) to SpeechGen pitch (-20 to 20)
-          const speechGenPitch = Math.round((voicePitch - 1) * 20);
-          audioBase64 = await generateSpeechGenSpeech(message.text, voiceSpeed, speechGenPitch, voiceVolume);
-        } else {
-          audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch, voiceSpeed, voiceVolume);
-        }
+        let audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch, voiceSpeed, voiceVolume);
         
         message.audio = audioBase64;
         
         // Always process lip sync after audio is generated
         try {
-    await lipSyncMessage(i);
-    message.lipsync = await readJsonTranscript(`audios/message_${i}.json`);
+          await lipSyncMessage(i);
+          message.lipsync = await readJsonTranscript(`audios/message_${i}.json`);
           
           // Validate lip sync data - if empty or invalid, regenerate using our algorithm
           if (!message.lipsync || !message.lipsync.mouthCues || message.lipsync.mouthCues.length < 2) {
@@ -666,9 +587,9 @@ app.post("/chat", async (req, res) => {
       } catch (error) {
         console.error(`Error processing message ${i}:`, error);
       }
-  }
+    }
 
-  res.send({ messages });
+    res.send({ messages });
   } catch (error) {
     console.error("Error processing request:", error);
     res.status(500).send({ 
