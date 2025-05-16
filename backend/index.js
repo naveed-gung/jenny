@@ -29,7 +29,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com', 'https://jenny-90fq.onrender.com', 'http://localhost:5173']
+    ? ['https://jenny-frontend.onrender.com', 'https://jenny-app.onrender.com', 'https://jenny-90fq.onrender.com', 'https://jenny-o4zw.onrender.com', 'http://localhost:5173']
     : 'http://localhost:5173',
   methods: ['GET', 'POST'],
   credentials: true
@@ -38,6 +38,154 @@ const port = 3000;
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
+});
+
+// Also handle requests coming to /api/chat (for deployment compatibility)
+app.post("/api/chat", async (req, res) => {
+  // Forward to the original chat handler
+  const userMessage = req.body.message;
+  const mode = req.body.mode || "chat";
+  const voiceType = req.body.voiceType || "default";
+  const voicePitch = req.body.voicePitch || 1.0;
+  const voiceSpeed = req.body.voiceSpeed || 1.0;
+  const voiceVolume = req.body.voiceVolume || 100;
+  
+  const selectedVoiceID = voiceMapping[voiceType] || voiceMapping.default;
+
+  if (!userMessage) {
+    // For first-time welcome message, use pre-existing files if available
+    try {
+    res.send({
+      messages: [
+        {
+            text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
+            audio: await audioFileToBase64("audios/greeting.mp3"),
+            lipsync: await readJsonTranscript("audios/greeting.json"),
+          facialExpression: "smile",
+          animation: "Waving", // Changed to Waving animation for greeting
+          }
+        ],
+      });
+    } catch (error) {
+      // If intro files don't exist, just send the message without audio/lipsync
+      res.send({
+        messages: [
+          {
+            text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
+            facialExpression: "smile",
+            animation: "Talking_1",
+          }
+      ],
+    });
+    }
+    return;
+  }
+
+  let messages = [];
+
+  try {
+    if (mode === "read") {
+      // Process text reading mode
+      const textChunks = splitTextIntoChunks(userMessage);
+      const responseMessages = [];
+
+      for (let i = 0; i < Math.min(textChunks.length, 5); i++) { // Limit to 5 chunks max
+        const chunk = textChunks[i];
+        responseMessages.push({
+          text: chunk,
+          facialExpression: "default",
+          animation: i % 2 === 0 ? "Talking_0" : "Talking_1",
+        });
+      }
+
+      messages = responseMessages;
+    } else {
+      // Chat mode - use AI model to generate response
+      const aiResponse = await getAIResponse(userMessage);
+      
+      // Determine facial expression and animation based on the content
+      const lowerResponse = aiResponse.toLowerCase();
+      let facialExpression = "default";
+      let animation = "Talking_0";
+      
+      if (lowerResponse.includes("sorry") || lowerResponse.includes("sad") || lowerResponse.includes("unfortunately")) {
+        facialExpression = "sad";
+        animation = "Talking_2";
+      } else if (lowerResponse.includes("haha") || lowerResponse.includes("funny") || lowerResponse.includes("laugh")) {
+        facialExpression = "smile";
+        animation = "Laughing";
+      } else if (lowerResponse.includes("wow") || lowerResponse.includes("amazing") || lowerResponse.includes("incredible")) {
+        facialExpression = "surprised";
+        animation = "Talking_1";
+      }
+      
+      messages = [{
+        text: aiResponse,
+        facialExpression,
+        animation
+      }];
+    }
+
+    // Process messages with audio generation
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+      
+      try {
+        message_counter = i; 
+        let audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch, voiceSpeed, voiceVolume);
+        
+        message.audio = audioBase64;
+        
+        // Always process lip sync after audio is generated
+        try {
+          await lipSyncMessage(i);
+          message.lipsync = await readJsonTranscript(`audios/message_${i}.json`);
+          
+          // Validate lip sync data - if empty or invalid, regenerate using our algorithm
+          if (!message.lipsync || !message.lipsync.mouthCues || message.lipsync.mouthCues.length < 2) {
+            console.log("Detected empty or invalid lip sync data, generating artificial data");
+            
+            // Get audio duration
+            try {
+              const durationCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 audios/message_${i}.mp3`;
+              const durationStr = await execCommand(durationCommand);
+              const duration = parseFloat(durationStr.trim());
+              
+              console.log(`Audio duration: ${duration} seconds`);
+              
+              // Generate artificial lip sync data
+              const lipSyncData = generateLipSyncData(duration);
+              await fs.writeFile(`audios/message_${i}.json`, JSON.stringify(lipSyncData));
+              message.lipsync = lipSyncData;
+            } catch (error) {
+              console.error("Error generating backup lip sync:", error);
+              message.lipsync = { mouthCues: [
+                { start: 0, end: 1, value: "A" },
+                { start: 1, end: 2, value: "B" }
+              ]};
+            }
+          }
+        } catch (lipSyncError) {
+          console.error('Lip sync failed:', lipSyncError);
+          message.lipsync = generateLipSyncData(3); // Default 3 seconds of lip sync data
+        }
+      } catch (error) {
+        console.error(`Error processing message ${i}:`, error);
+      }
+    }
+
+    res.send({ messages });
+  } catch (error) {
+    console.error("Error processing request:", error);
+    res.status(500).send({ 
+      error: "An error occurred processing your request",
+      messages: [{
+        text: "I'm sorry, I encountered an error processing your request. Please try again.",
+        facialExpression: "sad",
+        animation: "Talking_0"
+      }]
+    });
+  }
 });
 
 // Add a test endpoint for Gemini API
@@ -60,8 +208,19 @@ app.get("/test-gemini", async (req, res) => {
   }
 });
 
+// Return available TTS voices
 app.get("/voices", async (req, res) => {
-  // Return available TTS voices instead of using elevenlabs
+  res.json({
+    voices: [
+      { id: "3", name: "Female (English)" },
+      { id: "10", name: "Male (English)" }
+    ]
+  });
+});
+
+// Also handle requests coming to /api/voices (for deployment compatibility)
+app.get("/api/voices", async (req, res) => {
+  // Return available TTS voices
   res.json({
     voices: [
       { id: "3", name: "Female (English)" },
@@ -457,152 +616,6 @@ const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0,
   }
 };
 
-app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
-  const mode = req.body.mode || "chat";
-  const voiceType = req.body.voiceType || "default";
-  const voicePitch = req.body.voicePitch || 1.0;
-  const voiceSpeed = req.body.voiceSpeed || 1.0;
-  const voiceVolume = req.body.voiceVolume || 100;
-  
-  const selectedVoiceID = voiceMapping[voiceType] || voiceMapping.default;
-
-  if (!userMessage) {
-    // For first-time welcome message, use pre-existing files if available
-    try {
-    res.send({
-      messages: [
-        {
-            text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
-            audio: await audioFileToBase64("audios/greeting.mp3"),
-            lipsync: await readJsonTranscript("audios/greeting.json"),
-          facialExpression: "smile",
-          animation: "Waving", // Changed to Waving animation for greeting
-          }
-        ],
-      });
-    } catch (error) {
-      // If intro files don't exist, just send the message without audio/lipsync
-      res.send({
-        messages: [
-          {
-            text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
-            facialExpression: "smile",
-            animation: "Talking_1",
-          }
-      ],
-    });
-    }
-    return;
-  }
-
-  let messages = [];
-
-  try {
-    if (mode === "read") {
-      // Process text reading mode
-      const textChunks = splitTextIntoChunks(userMessage);
-      const responseMessages = [];
-
-      for (let i = 0; i < Math.min(textChunks.length, 5); i++) { // Limit to 5 chunks max
-        const chunk = textChunks[i];
-        responseMessages.push({
-          text: chunk,
-          facialExpression: "default",
-          animation: i % 2 === 0 ? "Talking_0" : "Talking_1",
-        });
-      }
-
-      messages = responseMessages;
-    } else {
-      // Chat mode - use AI model to generate response
-      const aiResponse = await getAIResponse(userMessage);
-      
-      // Determine facial expression and animation based on the content
-      const lowerResponse = aiResponse.toLowerCase();
-      let facialExpression = "default";
-      let animation = "Talking_0";
-      
-      if (lowerResponse.includes("sorry") || lowerResponse.includes("sad") || lowerResponse.includes("unfortunately")) {
-        facialExpression = "sad";
-        animation = "Talking_2";
-      } else if (lowerResponse.includes("haha") || lowerResponse.includes("funny") || lowerResponse.includes("laugh")) {
-        facialExpression = "smile";
-        animation = "Laughing";
-      } else if (lowerResponse.includes("wow") || lowerResponse.includes("amazing") || lowerResponse.includes("incredible")) {
-        facialExpression = "surprised";
-        animation = "Talking_1";
-      }
-      
-      messages = [{
-        text: aiResponse,
-        facialExpression,
-        animation
-      }];
-    }
-
-    // Process messages with audio generation
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-      
-      try {
-        message_counter = i; 
-        let audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch, voiceSpeed, voiceVolume);
-        
-        message.audio = audioBase64;
-        
-        // Always process lip sync after audio is generated
-        try {
-          await lipSyncMessage(i);
-          message.lipsync = await readJsonTranscript(`audios/message_${i}.json`);
-          
-          // Validate lip sync data - if empty or invalid, regenerate using our algorithm
-          if (!message.lipsync || !message.lipsync.mouthCues || message.lipsync.mouthCues.length < 2) {
-            console.log("Detected empty or invalid lip sync data, generating artificial data");
-            
-            // Get audio duration
-            try {
-              const durationCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 audios/message_${i}.mp3`;
-              const durationStr = await execCommand(durationCommand);
-              const duration = parseFloat(durationStr.trim());
-              
-              console.log(`Audio duration: ${duration} seconds`);
-              
-              // Generate artificial lip sync data
-              const lipSyncData = generateLipSyncData(duration);
-              await fs.writeFile(`audios/message_${i}.json`, JSON.stringify(lipSyncData));
-              message.lipsync = lipSyncData;
-            } catch (error) {
-              console.error("Error generating backup lip sync:", error);
-              message.lipsync = { mouthCues: [
-                { start: 0, end: 1, value: "A" },
-                { start: 1, end: 2, value: "B" }
-              ]};
-            }
-          }
-        } catch (lipSyncError) {
-          console.error('Lip sync failed:', lipSyncError);
-          message.lipsync = generateLipSyncData(3); // Default 3 seconds of lip sync data
-        }
-      } catch (error) {
-        console.error(`Error processing message ${i}:`, error);
-      }
-    }
-
-    res.send({ messages });
-  } catch (error) {
-    console.error("Error processing request:", error);
-    res.status(500).send({ 
-      error: "An error occurred processing your request",
-      messages: [{
-        text: "I'm sorry, I encountered an error processing your request. Please try again.",
-        facialExpression: "sad",
-        animation: "Talking_0"
-      }]
-    });
-  }
-});
-
 const readJsonTranscript = async (file) => {
   const data = await fs.readFile(file, "utf8");
   return JSON.parse(data);
@@ -946,6 +959,154 @@ app.get("/debug-lipsync", async (req, res) => {
     res.status(500).json({
       error: error.message,
       stack: error.stack
+    });
+  }
+});
+
+// Add back the original /chat endpoint 
+app.post("/chat", async (req, res) => {
+  // Forward to the original chat handler
+  const userMessage = req.body.message;
+  const mode = req.body.mode || "chat";
+  const voiceType = req.body.voiceType || "default";
+  const voicePitch = req.body.voicePitch || 1.0;
+  const voiceSpeed = req.body.voiceSpeed || 1.0;
+  const voiceVolume = req.body.voiceVolume || 100;
+  
+  const selectedVoiceID = voiceMapping[voiceType] || voiceMapping.default;
+
+  if (!userMessage) {
+    // For first-time welcome message, use pre-existing files if available
+    try {
+    res.send({
+      messages: [
+        {
+            text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
+            audio: await audioFileToBase64("audios/greeting.mp3"),
+            lipsync: await readJsonTranscript("audios/greeting.json"),
+          facialExpression: "smile",
+          animation: "Waving", // Changed to Waving animation for greeting
+          }
+        ],
+      });
+    } catch (error) {
+      // If intro files don't exist, just send the message without audio/lipsync
+      res.send({
+        messages: [
+          {
+            text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
+            facialExpression: "smile",
+            animation: "Talking_1",
+          }
+      ],
+    });
+    }
+    return;
+  }
+
+  let messages = [];
+
+  try {
+    if (mode === "read") {
+      // Process text reading mode
+      const textChunks = splitTextIntoChunks(userMessage);
+      const responseMessages = [];
+
+      for (let i = 0; i < Math.min(textChunks.length, 5); i++) { // Limit to 5 chunks max
+        const chunk = textChunks[i];
+        responseMessages.push({
+          text: chunk,
+          facialExpression: "default",
+          animation: i % 2 === 0 ? "Talking_0" : "Talking_1",
+        });
+      }
+
+      messages = responseMessages;
+    } else {
+      // Chat mode - use AI model to generate response
+      const aiResponse = await getAIResponse(userMessage);
+      
+      // Determine facial expression and animation based on the content
+      const lowerResponse = aiResponse.toLowerCase();
+      let facialExpression = "default";
+      let animation = "Talking_0";
+      
+      if (lowerResponse.includes("sorry") || lowerResponse.includes("sad") || lowerResponse.includes("unfortunately")) {
+        facialExpression = "sad";
+        animation = "Talking_2";
+      } else if (lowerResponse.includes("haha") || lowerResponse.includes("funny") || lowerResponse.includes("laugh")) {
+        facialExpression = "smile";
+        animation = "Laughing";
+      } else if (lowerResponse.includes("wow") || lowerResponse.includes("amazing") || lowerResponse.includes("incredible")) {
+        facialExpression = "surprised";
+        animation = "Talking_1";
+      }
+      
+      messages = [{
+        text: aiResponse,
+        facialExpression,
+        animation
+      }];
+    }
+
+    // Process messages with audio generation
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+      
+      try {
+        message_counter = i; 
+        let audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch, voiceSpeed, voiceVolume);
+        
+        message.audio = audioBase64;
+        
+        // Always process lip sync after audio is generated
+        try {
+          await lipSyncMessage(i);
+          message.lipsync = await readJsonTranscript(`audios/message_${i}.json`);
+          
+          // Validate lip sync data - if empty or invalid, regenerate using our algorithm
+          if (!message.lipsync || !message.lipsync.mouthCues || message.lipsync.mouthCues.length < 2) {
+            console.log("Detected empty or invalid lip sync data, generating artificial data");
+            
+            // Get audio duration
+            try {
+              const durationCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 audios/message_${i}.mp3`;
+              const durationStr = await execCommand(durationCommand);
+              const duration = parseFloat(durationStr.trim());
+              
+              console.log(`Audio duration: ${duration} seconds`);
+              
+              // Generate artificial lip sync data
+              const lipSyncData = generateLipSyncData(duration);
+              await fs.writeFile(`audios/message_${i}.json`, JSON.stringify(lipSyncData));
+              message.lipsync = lipSyncData;
+            } catch (error) {
+              console.error("Error generating backup lip sync:", error);
+              message.lipsync = { mouthCues: [
+                { start: 0, end: 1, value: "A" },
+                { start: 1, end: 2, value: "B" }
+              ]};
+            }
+          }
+        } catch (lipSyncError) {
+          console.error('Lip sync failed:', lipSyncError);
+          message.lipsync = generateLipSyncData(3); // Default 3 seconds of lip sync data
+        }
+      } catch (error) {
+        console.error(`Error processing message ${i}:`, error);
+      }
+    }
+
+    res.send({ messages });
+  } catch (error) {
+    console.error("Error processing request:", error);
+    res.status(500).send({ 
+      error: "An error occurred processing your request",
+      messages: [{
+        text: "I'm sorry, I encountered an error processing your request. Please try again.",
+        facialExpression: "sad",
+        animation: "Talking_0"
+      }]
     });
   }
 });
