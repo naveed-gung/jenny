@@ -3,26 +3,21 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import { promises as fs } from "fs";
-import fs_sync from "fs"; // Add synchronous fs methods
+import fs_sync from "fs"; 
 import fetch from "node-fetch";
 import path from "path";
 dotenv.config();
 
-// Gemini API key (replacing Hugging Face)
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
-// TTS Open API key 
 const ttsOpenApiKey = process.env.TTS_OPEN_API_KEY || "tts-5c14dd14a1a141b7577ce3fd10f95cff";
 
-// Voice mapping for different voice types 
-// Using voice IDs compatible with tts.quest API
 const voiceMapping = {
   default: "3",  // Default female voice (English)
   female: "3",   // Female voice (English)
   male: "10",    // Male voice (English)
 };
 
-// Counter for message files
 let message_counter = 0;
 
 const app = express();
@@ -40,9 +35,7 @@ app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 
-// Also handle requests coming to /api/chat (for deployment compatibility)
 app.post("/api/chat", async (req, res) => {
-  // Forward to the original chat handler
   const userMessage = req.body.message;
   const mode = req.body.mode || "chat";
   const voiceType = req.body.voiceType || "default";
@@ -53,7 +46,6 @@ app.post("/api/chat", async (req, res) => {
   const selectedVoiceID = voiceMapping[voiceType] || voiceMapping.default;
 
   if (!userMessage) {
-    // For first-time welcome message, use pre-existing files if available
     try {
     res.send({
       messages: [
@@ -67,7 +59,6 @@ app.post("/api/chat", async (req, res) => {
         ],
       });
     } catch (error) {
-      // If intro files don't exist, just send the message without audio/lipsync
       res.send({
         messages: [
           {
@@ -85,7 +76,6 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     if (mode === "read") {
-      // Process text reading mode
       const textChunks = splitTextIntoChunks(userMessage);
       const responseMessages = [];
 
