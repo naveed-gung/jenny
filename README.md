@@ -37,7 +37,7 @@ npm run install-all
 
 3. **Create a `.env` file in the backend directory with:**
 ```
-ELEVEN_LABS_API_KEY=your_elevenlabs_api_key  # Optional, will use Tortoise TTS as fallback
+TTS_OPEN_API_KEY=your_tts_open_api_key   # Optional, default key is provided
 GEMINI_API_KEY=your_gemini_api_key
 SPEECHGEN_API_KEY=your_speechgen_api_key  # Optional, for child voice
 SPEECHGEN_EMAIL=your_speechgen_email      # Optional, for child voice
@@ -53,12 +53,6 @@ npm run dev
 ## 🌟 Key Features Explained
 
 ### Lifelike Speech with Lip Sync
-
-Jenny uses multiple text-to-speech engines to provide high-quality voice synthesis:
-
-- **ElevenLabs API**: Primary TTS engine for high-quality voices (requires API key)
-- **Tortoise TTS**: Free and open-source fallback TTS engine (automatically used when ElevenLabs is unavailable)
-- **SpeechGen API**: Used specifically for child voices (optional)
 The avatar uses ElevenLabs' realistic voice synthesis combined with lip synchronization to create a natural speaking experience. The lip sync is powered by Rhubarb Lip Sync technology.
 
 ### Expressive Animations

@@ -1,27 +1,28 @@
 import { exec } from "child_process";
 import cors from "cors";
 import dotenv from "dotenv";
+import voice from "elevenlabs-node";
 import express from "express";
 import { promises as fs } from "fs";
 import fs_sync from "fs"; // Add synchronous fs methods
 import fetch from "node-fetch";
 import path from "path";
-// Import Tortoise TTS functions
-import { generateSpeechWithTortoise, generateSilentAudio, initTortoiseTTS } from './tortoise-tts.js';
 dotenv.config();
 
 // Gemini API key (replacing Hugging Face)
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
-// SpeechGen for child voice
+// TTS Open API key (replacing ElevenLabs)
+const ttsOpenApiKey = process.env.TTS_OPEN_API_KEY || "tts-5c14dd14a1a141b7577ce3fd10f95cff";
+
+const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
 const speechGenApiKey = process.env.SPEECHGEN_API_KEY;
 const speechGenEmail = process.env.SPEECHGEN_EMAIL;
 
-// Voice mapping for Tortoise TTS
 const voiceMapping = {
-  default: "emma", // Female voice for Tortoise
-  male: "daniel", // Male voice for Tortoise
-  child: "speechgen_child" // Special identifier for SpeechGen child voice  
+  default: "en-US-Neural2-F", // TTS Open default female voice
+  male: "en-US-Neural2-D",    // TTS Open male voice
+  child: "speechgen_child"    // Special identifier for SpeechGen child voice  
 };
 
 // Counter for message files
@@ -62,12 +63,15 @@ app.get("/test-gemini", async (req, res) => {
   }
 });
 
-// Voice list endpoint now returns Tortoise voices
 app.get("/voices", async (req, res) => {
+  // Return a list of available TTS Open voices
   res.send([
-    { voice_id: "emma", name: "Emma (Female)" },
-    { voice_id: "daniel", name: "Daniel (Male)" },
-    { voice_id: "speechgen_child", name: "Child Voice" }
+    { voice_id: "en-US-Neural2-F", name: "Female (Default)" },
+    { voice_id: "en-US-Neural2-D", name: "Male" },
+    { voice_id: "en-US-Neural2-A", name: "Female (Alternative)" },
+    { voice_id: "en-US-Neural2-C", name: "Male (Alternative)" },
+    { voice_id: "en-GB-Neural2-A", name: "British Female" },
+    { voice_id: "en-GB-Neural2-B", name: "British Male" }
   ]);
 });
 
@@ -415,45 +419,45 @@ const getAIResponse = async (userMessage) => {
   }
 };
 
-// Generate text to speech using Tortoise TTS
-const generateSpeech = async (text, voiceType = "default", voicePitch = 1.0) => {
+// Generate text to speech using TTS Open API
+const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
   try {
-    console.log(`Generating speech with Tortoise TTS: "${text.substring(0, 30)}..." using voice ${voiceType}`);
-    console.log(`Applied pitch adjustment: ${voicePitch}`);
-
-    // If this is a child voice, use SpeechGen instead
-    if (voiceType === "child" || voiceType === "speechgen_child") {
-      if (speechGenApiKey && speechGenEmail) {
-        return await generateSpeechGenSpeech(text, 1.0, voicePitch, 100);
-      } else {
-        console.log('SpeechGen API key not found, falling back to Tortoise TTS for child voice');
-      }
-    }
-
-    // Use Tortoise TTS for all other voices
-    const selectedVoice = voiceMapping[voiceType] || voiceMapping.default;
+    // TTS Open API implementation
+    const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(text)}&speaker=${encodeURIComponent(voiceId)}&key=${ttsOpenApiKey}`;
     
-    try {
-      // Generate speech with Tortoise TTS
-      const audioPath = await generateSpeechWithTortoise(text, selectedVoice, message_counter, voicePitch);
-      
-      // Read the generated audio file
-      const buffer = await fs.readFile(audioPath);
-      console.log(`Speech successfully generated and saved as ${path.basename(audioPath)}`);
-      
-      return buffer.toString('base64');
-    } catch (error) {
-      console.error('Error generating speech with Tortoise TTS:', error);
-      
-      // Generate silent audio as last resort
-      const silentAudioPath = await generateSilentAudio(message_counter, text.length / 10); // Estimate duration
-      const buffer = await fs.readFile(silentAudioPath);
-      console.log(`Generated silent audio as fallback: ${path.basename(silentAudioPath)}`);
-      
-      return buffer.toString('base64');
+    // Log parameters without exposing API key
+    console.log(`Generating speech with TTS Open API: voice=${voiceId}, pitch=${voicePitch}, speed=${voiceSpeed}`);
+    
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error('TTS Open API error:', response.status, response.statusText);
+      throw new Error(`TTS Open API error: ${response.status} - ${response.statusText}`);
     }
+
+    const result = await response.json();
+    
+    if (!result.success) {
+      console.error('TTS Open API returned error:', result);
+      throw new Error(`TTS Open API error: ${JSON.stringify(result)}`);
+    }
+    
+    // Download the audio file from the provided URL
+    const audioResponse = await fetch(result.mp3StreamingUrl);
+    if (!audioResponse.ok) {
+      throw new Error(`Failed to download audio file: ${audioResponse.status}`);
+    }
+    
+    const arrayBuffer = await audioResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Save the audio file
+    await fs.writeFile(`audios/message_${message_counter}.mp3`, buffer);
+    console.log(`Speech successfully generated and saved as message_${message_counter}.mp3`);
+    
+    return buffer.toString('base64');
   } catch (error) {
-    console.error('Error in speech generation:', error);
+    console.error('Error generating speech:', error);
     throw error;
   }
 };
@@ -559,10 +563,8 @@ app.post("/chat", async (req, res) => {
     return;
   }
 
-  // Initialize Tortoise TTS if not already initialized
-await initTortoiseTTS().catch(err => {
-  console.error("Failed to initialize Tortoise TTS:", err);
-});
+  // No need to check for TTS Open API key as we have a default one
+  // Just proceed with the request
 
   let messages = [];
 
@@ -617,13 +619,13 @@ await initTortoiseTTS().catch(err => {
         message_counter = i; 
         let audioBase64;
         
-        // Use SpeechGen for child voice, ElevenLabs for others
+        // Use SpeechGen for child voice, TTS Open API for others
         if (voiceType === 'child') {
           // Convert ElevenLabs pitch (0.5-1.5) to SpeechGen pitch (-20 to 20)
           const speechGenPitch = Math.round((voicePitch - 1) * 20);
           audioBase64 = await generateSpeechGenSpeech(message.text, voiceSpeed, speechGenPitch, voiceVolume);
         } else {
-          audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch);
+          audioBase64 = await generateSpeech(message.text, selectedVoiceID, voicePitch, voiceSpeed, voiceVolume);
         }
         
         message.audio = audioBase64;
@@ -725,14 +727,6 @@ const ensureAudioDirectory = async () => {
       // Directory doesn't exist, create it
       await fs.mkdir(binDir, { recursive: true });
       console.log('Created bin directory');
-    }
-    
-    // Initialize Tortoise TTS
-    try {
-      const tortoiseInitialized = await initTortoiseTTS();
-      console.log(`Tortoise TTS initialization ${tortoiseInitialized ? 'successful' : 'failed'}`);
-    } catch (error) {
-      console.error('Error initializing Tortoise TTS:', error);
     }
   } catch (error) {
     console.error('Error ensuring directories exist:', error);

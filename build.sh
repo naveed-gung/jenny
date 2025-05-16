@@ -17,28 +17,6 @@ else
   exit 1
 fi
 
-# Install Python dependencies for Tortoise TTS if enabled
-if [ "$USE_TORTOISE_TTS" = "true" ]; then
-  echo "Installing Python dependencies for Tortoise TTS..."
-  if command -v python3 &> /dev/null; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv venv
-    source venv/bin/activate
-    python3 -m pip install -r backend/requirements.txt
-    deactivate
-    echo "Python dependencies installed in virtual environment"
-  elif command -v python &> /dev/null; then
-    echo "Creating Python virtual environment..."
-    python -m venv venv
-    source venv/bin/activate
-    python -m pip install -r backend/requirements.txt
-    deactivate
-    echo "Python dependencies installed in virtual environment"
-  else
-    echo "Python not found, skipping Tortoise TTS installation"
-  fi
-fi
-
 # Download and set up Rhubarb
 echo "Setting up Rhubarb for lip sync..."
 mkdir -p bin/res/sphinx
