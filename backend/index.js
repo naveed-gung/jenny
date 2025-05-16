@@ -568,11 +568,22 @@ const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0,
   try {
     // Use TTS Open API for voice generation
     console.log(`Generating speech with TTS Open API: voice=${voiceId}, pitch=${voicePitch}, speed=${voiceSpeed}`);
+    console.log(`Using text (first 50 chars): "${text.substring(0, 50)}..."`);
+    
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('TTS API request timeout after 15 seconds')), 15000);
+    });
     
     // Use tts.quest API with the provided API key
     const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(text)}&speaker=${encodeURIComponent(voiceId)}&key=${ttsOpenApiKey}`;
+    console.log(`TTS API URL: ${url.split('key=')[0]}key=****`); // Log URL without the API key
     
-    const response = await fetch(url);
+    // Race the fetch against the timeout
+    const response = await Promise.race([
+      fetch(url),
+      timeoutPromise
+    ]);
 
     if (!response.ok) {
       console.error('TTS Open API error:', response.status, response.statusText);
@@ -580,14 +591,26 @@ const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0,
     }
 
     const result = await response.json();
+    console.log(`TTS API response: ${JSON.stringify(result).substring(0, 200)}...`);
     
     if (!result.success) {
       console.error('TTS Open API returned error:', result);
       throw new Error(`TTS Open API error: ${JSON.stringify(result)}`);
     }
     
-    // Download the audio file from the provided URL
-    const audioResponse = await fetch(result.mp3StreamingUrl || result.url);
+    // Check if we have a streaming URL
+    if (!result.mp3StreamingUrl) {
+      throw new Error('No mp3StreamingUrl in TTS API response');
+    }
+    
+    console.log(`Downloading audio from: ${result.mp3StreamingUrl}`);
+    
+    // Download the audio file from the provided URL with timeout
+    const audioResponse = await Promise.race([
+      fetch(result.mp3StreamingUrl || result.url),
+      timeoutPromise
+    ]);
+    
     if (!audioResponse.ok) {
       throw new Error(`Failed to download audio file: ${audioResponse.status}`);
     }
@@ -595,14 +618,74 @@ const generateSpeech = async (text, voiceId, voicePitch = 1.0, voiceSpeed = 1.0,
     const arrayBuffer = await audioResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
+    // Make sure we actually got audio data
+    if (buffer.length < 100) {
+      console.error('Received suspiciously small audio file:', buffer.length, 'bytes');
+      throw new Error('Received invalid or empty audio file');
+    }
+    
     // Save the audio file
     await fs.writeFile(`audios/message_${message_counter}.mp3`, buffer);
-    console.log(`Speech successfully generated and saved as message_${message_counter}.mp3`);
+    console.log(`Speech successfully generated and saved as message_${message_counter}.mp3 (${buffer.length} bytes)`);
     
     return buffer.toString('base64');
   } catch (error) {
-    console.error('Error generating speech with TTS Open API:', error);
-    throw error;
+    console.error('Error with primary TTS API:', error);
+    
+    // Try an alternative TTS API
+    try {
+      console.log('Trying alternative TTS API...');
+      
+      // Map our voice IDs to a compatible format for the alternative API
+      const altVoiceId = voiceId === "3" ? "en-US-Wavenet-F" : "en-US-Wavenet-D";
+      
+      // Use a free alternative TTS service
+      const altUrl = `https://texttospeech.responsivevoice.org/v1/text:synthesize?text=${encodeURIComponent(text)}&lang=en-US&engine=g1&name=${altVoiceId}&key=0POmS5Y2&gender=female`;
+      
+      console.log(`Alternative TTS URL: ${altUrl.substring(0, altUrl.indexOf('&key=') + 5)}****`);
+      
+      const altResponse = await Promise.race([
+        fetch(altUrl),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Alternative TTS timeout')), 10000))
+      ]);
+      
+      if (!altResponse.ok) {
+        throw new Error(`Alternative TTS API error: ${altResponse.status}`);
+      }
+      
+      const altArrayBuffer = await altResponse.arrayBuffer();
+      const altBuffer = Buffer.from(altArrayBuffer);
+      
+      if (altBuffer.length < 100) {
+        throw new Error(`Alternative TTS returned suspiciously small file: ${altBuffer.length} bytes`);
+      }
+      
+      // Save the audio file
+      await fs.writeFile(`audios/message_${message_counter}.mp3`, altBuffer);
+      console.log(`Alternative TTS speech generated (${altBuffer.length} bytes)`);
+      
+      return altBuffer.toString('base64');
+    } catch (altError) {
+      console.error('Error with alternative TTS API:', altError);
+      
+      // Create a fallback minimal audio file to prevent UI from hanging
+      try {
+        // Create a silent audio file using ffmpeg
+        console.log('Creating a silent audio file as fallback');
+        const silentCommand = `ffmpeg -f lavfi -i anullsrc=r=24000:cl=mono -t 1 -q:a 9 -acodec libmp3lame audios/message_${message_counter}.mp3`;
+        await execCommand(silentCommand);
+        
+        // Read the generated silent audio
+        const silentAudio = await fs.readFile(`audios/message_${message_counter}.mp3`);
+        console.log(`Created silent fallback audio (${silentAudio.length} bytes)`);
+        
+        return silentAudio.toString('base64');
+      } catch (fallbackError) {
+        console.error('Even fallback audio creation failed:', fallbackError);
+        // Return an empty base64 string as a last resort
+        return '';
+      }
+    }
   }
 };
 
