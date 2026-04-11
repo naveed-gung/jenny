@@ -6,6 +6,23 @@ const backendUrl = isProduction ? '/api' : (import.meta.env.VITE_API_URL || "htt
 
 const ChatContext = createContext();
 
+const ANIMATION_ALIASES = {
+  Wave: "Talking_1",
+  Waving: "Talking_1",
+  Hello: "Talking_1",
+  Welcome: "Talking_1",
+  Sad: "Crying",
+  Cry: "Crying",
+  Excited: "Talking_1",
+  Thinking: "Talking_0",
+  Surprised: "Talking_1",
+};
+
+const normalizeMessageAnimation = (message) => ({
+  ...message,
+  animation: ANIMATION_ALIASES[message.animation] || message.animation,
+});
+
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState();
@@ -29,14 +46,7 @@ export const ChatProvider = ({ children }) => {
       const resp = (await data.json()).messages;
       
       // Process messages to ensure valid animations
-      const processedMessages = resp.map(msg => {
-        // Fix animation names for compatibility with the loaded model
-        if (msg.animation === "Wave") {
-          // Replace with an animation that actually exists in animations.glb
-          msg.animation = "Talking"; // or another animation that exists
-        }
-        return msg;
-      });
+      const processedMessages = resp.map(normalizeMessageAnimation);
       
       setMessages(prevMessages => [...prevMessages, ...processedMessages]);
     } catch (error) {

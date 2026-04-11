@@ -10,6 +10,18 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useChat } from "../hooks/useChat";
 
+const TALKING_ANIMATIONS = ["Talking_0", "Talking_1", "Talking_2"];
+const IDLE_ANIMATION_CANDIDATES = ["Idle", "Idle_2", "Idle_3"];
+
+const pickRandom = (items, exclude) => {
+  const pool = items.filter(Boolean).filter((item) => item !== exclude);
+  if (pool.length === 0) {
+    return exclude ?? items[0] ?? null;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
 // Define facial expressions
 const facialExpressions = {
   default: {},
@@ -53,6 +65,23 @@ const facialExpressions = {
     mouthClose: 0.23,
     mouthFunnel: 0.63,
     mouthDimpleRight: 1,
+  },
+  sad: {
+    browInnerUp: 0.55,
+    browDownLeft: 0.15,
+    browDownRight: 0.15,
+    eyeSquintLeft: 0.25,
+    eyeSquintRight: 0.25,
+    mouthFrownLeft: 0.65,
+    mouthFrownRight: 0.65,
+    mouthShrugLower: 0.25,
+  },
+  surprised: {
+    browInnerUp: 0.9,
+    eyeWideLeft: 0.8,
+    eyeWideRight: 0.8,
+    jawOpen: 0.35,
+    mouthFunnel: 0.2,
   },
   crazy: {
     browInnerUp: 0.9,
@@ -154,8 +183,10 @@ export function Avatar(props) {
   const { nodes, materials, scene } = useGLTF("/models/6815e61cf02ddac4006e98bb.glb");
   const { animations } = useGLTF("/models/animations.glb");
   
-  // Log animations for debugging
   useEffect(() => {
+    if (import.meta.env.DEV && animations?.length) {
+      console.info("Available animations:", animations.map((clip) => clip.name));
+    }
   }, [animations]);
 
   const { message, onMessagePlayed, setIsSpeaking } = useChat();
@@ -169,6 +200,7 @@ export function Avatar(props) {
   const [facialExpression, setFacialExpression] = useState("");
   const audioRef = useRef(null);
   const audioSourceRef = useRef(null);
+  const gestureTimerRef = useRef(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const audioContextRef = useRef(null);
@@ -222,6 +254,107 @@ export function Avatar(props) {
   const stopAllAnimations = () => {
     if (!actions) return;
     Object.values(actions).forEach(action => action.stop());
+  };
+
+  const clearGestureTimer = () => {
+    if (gestureTimerRef.current) {
+      clearTimeout(gestureTimerRef.current);
+      gestureTimerRef.current = null;
+    }
+  };
+
+  const resolveAnimationName = (requestedAnimation) => {
+    const availableActions = Object.keys(actions || {});
+    if (availableActions.length === 0) {
+      return requestedAnimation || "Idle";
+    }
+
+    if (requestedAnimation && actions?.[requestedAnimation]) {
+      return requestedAnimation;
+    }
+
+    const aliases = {
+      Wave: "Talking_1",
+      Waving: "Talking_1",
+      Hello: "Talking_1",
+      Welcome: "Talking_1",
+      Sad: "Crying",
+      Cry: "Crying",
+      Excited: "Talking_1",
+      Thinking: "Talking_0",
+      Surprised: "Talking_1",
+      Angry: "Angry",
+      Laughing: "Laughing",
+      Terrified: "Terrified",
+    };
+
+    const normalizedAnimation = aliases[requestedAnimation] || requestedAnimation;
+    if (normalizedAnimation && actions?.[normalizedAnimation]) {
+      return normalizedAnimation;
+    }
+
+    const firstTalkingAnimation = TALKING_ANIMATIONS.find((name) => actions?.[name]);
+    return firstTalkingAnimation || (actions?.Idle ? "Idle" : availableActions[0]);
+  };
+
+  const playIdleWithVariation = () => {
+    if (!actions) return null;
+
+    const idleAnimationName =
+      IDLE_ANIMATION_CANDIDATES.find((name) => actions[name]) ||
+      (actions.Idle ? "Idle" : null);
+
+    if (!idleAnimationName) {
+      return null;
+    }
+
+    stopAllAnimations();
+    const idleAction = actions[idleAnimationName];
+    idleAction.reset();
+
+    if (idleAction.getClip) {
+      const duration = idleAction.getClip()?.duration || 0;
+      if (duration > 0) {
+        idleAction.time = Math.random() * Math.min(duration * 0.5, duration - 0.01);
+      }
+    }
+
+    idleAction.setEffectiveTimeScale(0.95 + Math.random() * 0.12);
+    idleAction.fadeIn(0.5).play();
+    idleAction.loop = THREE.LoopRepeat;
+    return idleAnimationName;
+  };
+
+  const scheduleSpeechGesture = (primaryAnimation) => {
+    clearGestureTimer();
+
+    const resolvedPrimaryAnimation = resolveAnimationName(primaryAnimation);
+    const gesturePool = TALKING_ANIMATIONS.filter((name) => actions?.[name]);
+
+    if (
+      resolvedPrimaryAnimation &&
+      actions?.[resolvedPrimaryAnimation] &&
+      resolvedPrimaryAnimation !== "Idle" &&
+      !gesturePool.includes(resolvedPrimaryAnimation)
+    ) {
+      gesturePool.unshift(resolvedPrimaryAnimation);
+    }
+
+    if (gesturePool.length <= 1) {
+      return;
+    }
+
+    const queueNextGesture = (previousGesture) => {
+      gestureTimerRef.current = setTimeout(() => {
+        const nextGesture = pickRandom(gesturePool, previousGesture);
+        if (nextGesture) {
+          playAnimation(nextGesture);
+          queueNextGesture(nextGesture);
+        }
+      }, 2200 + Math.random() * 1600);
+    };
+
+    queueNextGesture(resolvedPrimaryAnimation);
   };
 
   // Play a specific animation
@@ -279,13 +412,14 @@ export function Avatar(props) {
     }
 
     if (!message) {
-      playAnimation("Idle");
+      playIdleWithVariation();
       setFacialExpression("");
       setLipsync(null);
       setCurrentTime(0);
       setIsSpeaking(false);
       webAudioStartTimeRef.current = null;
       webAudioDurationRef.current = 0;
+      clearGestureTimer();
       
       // Make sure to clean up any existing audio
       if (audioSourceRef.current) {
@@ -305,12 +439,11 @@ export function Avatar(props) {
       return;
     }
     
-    const animationName = message.animation || "Idle";
+    const animationName = resolveAnimationName(message.animation || "Idle");
     const expressionName = message.facialExpression || "";
 
     // Keep Jenny idle until playback actually starts.
-    setAnimation("Idle");
-    playAnimation("Idle");
+    setAnimation(playIdleWithVariation() || "Idle");
     setFacialExpression("");
     setIsSpeaking(false);
     
@@ -370,6 +503,7 @@ export function Avatar(props) {
                 setIsSpeaking(false);
                 webAudioStartTimeRef.current = null;
                 webAudioDurationRef.current = 0;
+                clearGestureTimer();
                 onMessagePlayed();
               };
               
@@ -380,6 +514,7 @@ export function Avatar(props) {
               setFacialExpression(expressionName);
               setAudioPlaying(true);
               setIsSpeaking(true);
+              scheduleSpeechGesture(animationName);
               
               // Start tracking audio time for lip sync
               rafRef.current = requestAnimationFrame(updateAudioTime);
@@ -409,6 +544,7 @@ export function Avatar(props) {
           setFacialExpression(expressionName);
           setAudioPlaying(true);
           setIsSpeaking(true);
+          scheduleSpeechGesture(animationName);
           rafRef.current = requestAnimationFrame(updateAudioTime);
         };
         
@@ -436,6 +572,7 @@ export function Avatar(props) {
                 }).catch(err => {
                   console.error("Retry audio play failed:", err);
                   setIsSpeaking(false);
+                  clearGestureTimer();
                   setTimeout(onMessagePlayed, 3000);
                 });
               }, 300);
@@ -451,6 +588,7 @@ export function Avatar(props) {
           setIsSpeaking(false);
           webAudioStartTimeRef.current = null;
           webAudioDurationRef.current = 0;
+          clearGestureTimer();
           onMessagePlayed();
           
           if (rafRef.current) {
@@ -465,6 +603,7 @@ export function Avatar(props) {
           setIsSpeaking(false);
           webAudioStartTimeRef.current = null;
           webAudioDurationRef.current = 0;
+          clearGestureTimer();
           onMessagePlayed();
           
           if (rafRef.current) {
@@ -487,17 +626,20 @@ export function Avatar(props) {
         } catch (err) {
           console.error("Audio load failed:", err);
           setIsSpeaking(false);
+          clearGestureTimer();
           setTimeout(onMessagePlayed, 3000);
         }
       }
     } else {
       // No audio to play, just advance after a delay
       setIsSpeaking(false);
+      clearGestureTimer();
       setTimeout(onMessagePlayed, 3000);
     }
     
     // Cleanup function
     return () => {
+      clearGestureTimer();
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;

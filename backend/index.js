@@ -19,6 +19,56 @@ const voiceMapping = {
   male: "10",    // Male voice (English)
 };
 
+const TALKING_ANIMATIONS = ["Talking_0", "Talking_1", "Talking_2"];
+
+const pickRandom = (items, exclude) => {
+  const pool = items.filter(Boolean).filter((item) => item !== exclude);
+  if (pool.length === 0) {
+    return exclude ?? items[0] ?? null;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
+const getTalkingAnimation = (exclude) => pickRandom(TALKING_ANIMATIONS, exclude) || "Talking_0";
+
+const getAnimationForText = (text, previousAnimation) => {
+  const lower = text.toLowerCase();
+
+  if (/sorry|sad|unfortunately|hard|difficult|apolog/i.test(lower)) {
+    return { animation: "Crying", facialExpression: "sad" };
+  }
+
+  if (/haha|funny|joke|laugh|lol|hilarious/i.test(lower)) {
+    return { animation: "Laughing", facialExpression: "smile" };
+  }
+
+  if (/wow|amazing|incredible|awesome|great|fantastic/i.test(lower)) {
+    return { animation: "Talking_1", facialExpression: "surprised" };
+  }
+
+  if (/hello|\bhi\b|\bhey\b|greet|welcome/i.test(lower)) {
+    return { animation: "Talking_1", facialExpression: "smile" };
+  }
+
+  if (/think|wonder|hmm|interesting|consider|maybe/i.test(lower)) {
+    return { animation: "Talking_0", facialExpression: "default" };
+  }
+
+  if (/angry|annoyed|frustrated|stop|furious/i.test(lower)) {
+    return { animation: "Angry", facialExpression: "angry" };
+  }
+
+  if (/afraid|terrified|scared|panic|shocked/i.test(lower)) {
+    return { animation: "Terrified", facialExpression: "surprised" };
+  }
+
+  return {
+    animation: getTalkingAnimation(previousAnimation),
+    facialExpression: "default",
+  };
+};
+
 let message_counter = 0;
 
 const app = express();
@@ -48,24 +98,24 @@ app.post("/api/chat", async (req, res) => {
 
   if (!userMessage) {
     try {
+    const greetingAnimation = getAnimationForText("hello welcome");
     res.send({
       messages: [
         {
             text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
             audio: await audioFileToBase64("audios/greeting.mp3"),
             lipsync: await readJsonTranscript("audios/greeting.json"),
-          facialExpression: "smile",
-          animation: "Waving", // Changed to Waving animation for greeting
+          ...greetingAnimation,
           }
         ],
       });
     } catch (error) {
+      const greetingAnimation = getAnimationForText("hello welcome");
       res.send({
         messages: [
           {
             text: "Hello! I'm your AI reader. Type text for me to read or ask me a question!",
-            facialExpression: "smile",
-            animation: "Talking_1",
+            ...greetingAnimation,
           }
       ],
     });
@@ -79,13 +129,19 @@ app.post("/api/chat", async (req, res) => {
     if (mode === "read") {
       const textChunks = splitTextIntoChunks(userMessage);
       const responseMessages = [];
+      let previousAnimation = null;
 
       for (let i = 0; i < Math.min(textChunks.length, 5); i++) { // Limit to 5 chunks max
         const chunk = textChunks[i];
+        const animationMeta = {
+          animation: getTalkingAnimation(previousAnimation),
+          facialExpression: "default",
+        };
+        previousAnimation = animationMeta.animation;
+
         responseMessages.push({
           text: chunk,
-          facialExpression: "default",
-          animation: i % 2 === 0 ? "Talking_0" : "Talking_1",
+          ...animationMeta,
         });
       }
 
@@ -93,27 +149,11 @@ app.post("/api/chat", async (req, res) => {
     } else {
       // Chat mode - use AI model to generate response
       const aiResponse = await getAIResponse(userMessage);
-      
-      // Determine facial expression and animation based on the content
-      const lowerResponse = aiResponse.toLowerCase();
-      let facialExpression = "default";
-      let animation = "Talking_0";
-      
-      if (lowerResponse.includes("sorry") || lowerResponse.includes("sad") || lowerResponse.includes("unfortunately")) {
-        facialExpression = "sad";
-        animation = "Talking_2";
-      } else if (lowerResponse.includes("haha") || lowerResponse.includes("funny") || lowerResponse.includes("laugh")) {
-        facialExpression = "smile";
-        animation = "Laughing";
-      } else if (lowerResponse.includes("wow") || lowerResponse.includes("amazing") || lowerResponse.includes("incredible")) {
-        facialExpression = "surprised";
-        animation = "Talking_1";
-      }
+      const animationMeta = getAnimationForText(aiResponse);
       
       messages = [{
         text: aiResponse,
-        facialExpression,
-        animation
+        ...animationMeta,
       }];
     }
 
@@ -173,7 +213,7 @@ app.post("/api/chat", async (req, res) => {
       messages: [{
         text: "I'm sorry, I encountered an error processing your request. Please try again.",
         facialExpression: "sad",
-        animation: "Talking_0"
+        animation: "Crying"
       }]
     });
   }
