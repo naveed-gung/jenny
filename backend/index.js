@@ -6,6 +6,7 @@ import { promises as fs } from "fs";
 import fs_sync from "fs"; 
 import fetch from "node-fetch";
 import path from "path";
+import { fileURLToPath } from "url";
 dotenv.config();
 
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -29,7 +30,7 @@ app.use(cors({
   methods: ['GET', 'POST'],
   credentials: true
 }));
-const port = 3000;
+const port = Number(process.env.PORT || 3000);
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -1186,3 +1187,13 @@ app.post("/chat", async (req, res) => {
 
 // Export the app
 export default app;
+
+const isDirectRun = process.argv[1]
+  ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  : false;
+
+if (isDirectRun) {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Jenny backend listening on http://localhost:${port}`);
+  });
+}

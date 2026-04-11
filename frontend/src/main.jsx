@@ -47,27 +47,6 @@ function unlockAudioContext() {
     oscillator.start(0);
     oscillator.stop(audioContext.currentTime + 0.001);
     
-    // Create a silent audio element as fallback
-    const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
-    
-    // Try different methods to get audio to play
-    const playPromise = silentAudio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(err => {
-        console.log("Silent audio play rejected, will retry on user interaction:", err.message);
-      });
-    }
-    
-    // Create a video element as a last resort (useful in some browsers)
-    const video = document.createElement('video');
-    video.setAttribute('playsinline', '');
-    video.setAttribute('muted', '');
-    video.setAttribute('preload', 'auto');
-    video.setAttribute('src', 'data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wNDJtcDQxaXNvbWF2YzEAAATKbW9vdgAAAGxtdmhkAAAAANLEP5XSxD+VAAB1MAAAdU4AAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAACFpb2RzAAAAABCAgIAQAE////9//w6AgIAEAAAAAQAABDV0cmFrAAAAXHRraGQAAAAH0sQ/ldLEP5UAAAABAAAAAAAAdU4AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAIAAAACAAAAAABsW1kaWEAAAAgbWRoZAAAAADSxD+V0sQ/lQB1MAAAdU5VxAAAAAAANmhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABMLVNNQVNIIFZpZGVvIEhhbmRsZXIAAAABbG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAASwstW9vZgAAABx6aGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAATFNNQVNIIFZpZGVvIEhhbmRsZXIAAAACC21pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAACC3N0YmwAAACxc3RzZAAAAAAAAAABAAAAoWF2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAIAAIAEgAAABIAAAAAAAAAAEOSlZUTAEAAA7kFOUABRQjgUQABYUAVSXgo5+/vr7+//7+/v7+/v5QJP7/6+/+QNW4D9y+bkOyLab95dP5zu0cOgAJCgQRzARBEgAAAEowgHMA8JwAJzdAFiIAGBwHJA8YGyQAAg8jL4QOHP/7kmQmhAUtIUzwKKkqKmHo1gUVRUVBSeAomUgrAijYBRUlBwkdQ2y9m5dpIDhIMAGNADM2OjZKJkYeAABAYFAQDAgCBgCBAI/8BCMPEb2+H/TfSA4QCgwIAgYAgQCP/AQjDxG9vh/030gOEAYb2tfgB///6f//p/p2g1tBUayCKRRKKgF0REYkCgDGNAgDAwAg0GiIuYFAlalQBLtA0JgADQWIhL5fL5fUIRz+dL5/5Usjl8qL4hCjzPQJI88yiPPeZRX/pRHnmRBHnmRxHn/7+oj0PRz4BF0J/D//JoAbmI/o+eAaJTJEPXv9X/1bw+tLRLp/p9qWiHCx9Pf7f/u6/////7cqBCIGCCJEDhAEgzxY48QUUUCU7KFFFFJRvAUZE0skYUTSSSSSSSSSSQDEQHvkkkkCQzRTuSSRgJJgGCKdkkkgIYB6TQoGQZD5slMSSSQBAAAhBQMhQVBzE');
-    video.load();
-    video.muted = true;
-    video.play().catch(e => console.log("Video play failed, but that's ok"));
-    
     // Mark the document as user-interacted
     document.documentElement.setAttribute('data-user-interacted', 'true');
     document.documentElement.setAttribute('data-audio-unlocked', 'true');
@@ -77,6 +56,8 @@ function unlockAudioContext() {
     console.error("Error trying to unlock audio:", err);
   }
 }
+
+let audioInitializationStarted = false;
 
 // Add user interaction tracking for audio playback
 function addUserInteractionTracking() {
@@ -151,6 +132,12 @@ function simulateUserInteraction() {
 
 // Initialize everything
 function initializeAudio() {
+  if (audioInitializationStarted) {
+    return;
+  }
+
+  audioInitializationStarted = true;
+
   // Initialize user interaction tracking
   addUserInteractionTracking();
   
@@ -172,11 +159,11 @@ function initializeAudio() {
   }, 2000);
 }
 
-// Start everything
-document.addEventListener('DOMContentLoaded', initializeAudio);
-
-// Also try immediately
-initializeAudio();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeAudio, { once: true });
+} else {
+  initializeAudio();
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

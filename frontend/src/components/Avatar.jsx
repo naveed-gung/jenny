@@ -89,17 +89,17 @@ const corresponding = {
 
 // Create a silent audio element to unlock audio
 const unmuteAudio = () => {
-  const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
-  
   try {
-    silentAudio.play().catch(err => {
-      console.log("Silent audio play failed, but that's ok:", err.message);
-    });
-    
-    // Also try to create an audio context
+    // Use Web Audio only here to avoid unsupported inline media source noise.
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (AudioContext) {
       const audioCtx = new AudioContext();
+      const buffer = audioCtx.createBuffer(1, 1, 22050);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.start(0);
+
       const oscillator = audioCtx.createOscillator();
       oscillator.frequency.value = 0; // Silent oscillator
       oscillator.connect(audioCtx.destination);
@@ -158,7 +158,7 @@ export function Avatar(props) {
   useEffect(() => {
   }, [animations]);
 
-  const { message, onMessagePlayed, chat } = useChat();
+  const { message, onMessagePlayed, setIsSpeaking } = useChat();
   const [lipsync, setLipsync] = useState(null);
   const group = useRef();
   const { actions, mixer } = useAnimations(animations, group);
@@ -173,6 +173,8 @@ export function Avatar(props) {
   const [currentTime, setCurrentTime] = useState(0);
   const audioContextRef = useRef(null);
   const rafRef = useRef(null);
+  const webAudioStartTimeRef = useRef(null);
+  const webAudioDurationRef = useRef(0);
 
   // Initialize our own audio context if needed
   useEffect(() => {
@@ -255,9 +257,16 @@ export function Avatar(props) {
 
   // Track audio playback time with RequestAnimationFrame for more accurate lip sync
   const updateAudioTime = () => {
-    if (audioRef.current && audioPlaying) {
-      setCurrentTime(audioRef.current.currentTime);
+    if (audioPlaying) {
+      if (audioRef.current) {
+        setCurrentTime(audioRef.current.currentTime);
+      } else if (audioContextRef.current && webAudioStartTimeRef.current !== null) {
+        const elapsed = audioContextRef.current.currentTime - webAudioStartTimeRef.current;
+        const duration = webAudioDurationRef.current || elapsed;
+        setCurrentTime(Math.min(Math.max(elapsed, 0), duration));
+      }
     }
+
     rafRef.current = requestAnimationFrame(updateAudioTime);
   };
 
@@ -274,6 +283,9 @@ export function Avatar(props) {
       setFacialExpression("");
       setLipsync(null);
       setCurrentTime(0);
+      setIsSpeaking(false);
+      webAudioStartTimeRef.current = null;
+      webAudioDurationRef.current = 0;
       
       // Make sure to clean up any existing audio
       if (audioSourceRef.current) {
@@ -293,13 +305,14 @@ export function Avatar(props) {
       return;
     }
     
-    // Set animation
     const animationName = message.animation || "Idle";
-    setAnimation(animationName);
-    playAnimation(animationName);
-    
-    // Set facial expression
-    setFacialExpression(message.facialExpression || "");
+    const expressionName = message.facialExpression || "";
+
+    // Keep Jenny idle until playback actually starts.
+    setAnimation("Idle");
+    playAnimation("Idle");
+    setFacialExpression("");
+    setIsSpeaking(false);
     
     // Set lipsync data
     if (message.lipsync) {
@@ -346,16 +359,27 @@ export function Avatar(props) {
               source.buffer = buffer;
               source.connect(audioContextRef.current.destination);
               audioSourceRef.current = source;
+              webAudioStartTimeRef.current = audioContextRef.current.currentTime;
+              webAudioDurationRef.current = buffer.duration;
+              setCurrentTime(0);
               
               // Set up event handlers
               source.onended = () => {
                 setAudioPlaying(false);
+                setCurrentTime(buffer.duration);
+                setIsSpeaking(false);
+                webAudioStartTimeRef.current = null;
+                webAudioDurationRef.current = 0;
                 onMessagePlayed();
               };
               
               // Start playback
-              source.start();
+              source.start(webAudioStartTimeRef.current);
+              setAnimation(animationName);
+              playAnimation(animationName);
+              setFacialExpression(expressionName);
               setAudioPlaying(true);
+              setIsSpeaking(true);
               
               // Start tracking audio time for lip sync
               rafRef.current = requestAnimationFrame(updateAudioTime);
@@ -378,40 +402,55 @@ export function Avatar(props) {
       // 2. Fallback to HTML5 Audio
       function fallbackToHTML5Audio() {
         console.log("Falling back to HTML5 Audio API");
+
+        const startSpeaking = () => {
+          setAnimation(animationName);
+          playAnimation(animationName);
+          setFacialExpression(expressionName);
+          setAudioPlaying(true);
+          setIsSpeaking(true);
+          rafRef.current = requestAnimationFrame(updateAudioTime);
+        };
         
         // Create a new audio instance
         const audio = new Audio();
         
         // Set up all event handlers before setting the source
         audio.oncanplaythrough = () => {
-          setAudioPlaying(true);
           console.log("Audio can play through, starting playback");
           
           // Try multiple methods to get it to play
           const playPromise = audio.play();
           
           if (playPromise !== undefined) {
-            playPromise.catch(err => {
+            playPromise.then(() => {
+              startSpeaking();
+            }).catch(err => {
               console.error("Audio play failed:", err);
               
               // Try one more time with user interaction simulation
               document.body.click();
               setTimeout(() => {
-                audio.play().catch(err => {
+                audio.play().then(() => {
+                  startSpeaking();
+                }).catch(err => {
                   console.error("Retry audio play failed:", err);
+                  setIsSpeaking(false);
                   setTimeout(onMessagePlayed, 3000);
                 });
               }, 300);
             });
+          } else {
+            startSpeaking();
           }
-          
-          // Start tracking audio time for lip sync
-          rafRef.current = requestAnimationFrame(updateAudioTime);
         };
         
         audio.onended = () => {
           console.log("Audio playback completed");
           setAudioPlaying(false);
+          setIsSpeaking(false);
+          webAudioStartTimeRef.current = null;
+          webAudioDurationRef.current = 0;
           onMessagePlayed();
           
           if (rafRef.current) {
@@ -423,6 +462,9 @@ export function Avatar(props) {
         audio.onerror = (e) => {
           console.error("Audio error:", e);
           setAudioPlaying(false);
+          setIsSpeaking(false);
+          webAudioStartTimeRef.current = null;
+          webAudioDurationRef.current = 0;
           onMessagePlayed();
           
           if (rafRef.current) {
@@ -444,11 +486,13 @@ export function Avatar(props) {
           audio.load();
         } catch (err) {
           console.error("Audio load failed:", err);
+          setIsSpeaking(false);
           setTimeout(onMessagePlayed, 3000);
         }
       }
     } else {
       // No audio to play, just advance after a delay
+      setIsSpeaking(false);
       setTimeout(onMessagePlayed, 3000);
     }
     
@@ -459,7 +503,7 @@ export function Avatar(props) {
         rafRef.current = null;
       }
     };
-  }, [message, onMessagePlayed, actions]);
+  }, [message, onMessagePlayed, actions, setIsSpeaking]);
 
   // Apply morph targets smoothly
   const lerpMorphTarget = (target, value, speed = 0.1) => {
@@ -753,5 +797,6 @@ export function Avatar(props) {
   );
 }
 
+useGLTF.setDecoderPath("/draco/");
 useGLTF.preload("/models/6815e61cf02ddac4006e98bb.glb");
 useGLTF.preload("/models/animations.glb");

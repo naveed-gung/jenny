@@ -10,11 +10,13 @@ export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState();
   const [loading, setLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [cameraZoomed, setCameraZoomed] = useState(true);
   const greetingTriggered = useRef(false);
   
   const chat = async (message, mode = "chat", voiceType = "default", voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
     setLoading(true);
+    setIsSpeaking(false);
     try {
       const data = await fetch(`${backendUrl}/chat`, {
         method: "POST",
@@ -54,6 +56,7 @@ export const ChatProvider = ({ children }) => {
       setMessage(messages[0]);
     } else {
       setMessage(null);
+      setIsSpeaking(false);
     }
   }, [messages]);
 
@@ -80,6 +83,8 @@ export const ChatProvider = ({ children }) => {
         message,
         onMessagePlayed,
         loading,
+        isSpeaking,
+        setIsSpeaking,
         cameraZoomed,
         setCameraZoomed,
       }}

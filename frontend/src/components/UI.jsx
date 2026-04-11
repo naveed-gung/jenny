@@ -6,7 +6,7 @@ export const UI = ({ hidden, ...props }) => {
   const input = useRef();
   const fileInputRef = useRef();
   const textInputRef = useRef();
-  const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
+  const { chat, loading, isSpeaking, cameraZoomed, setCameraZoomed, message } = useChat();
   const [inputMode, setInputMode] = useState("chat"); // chat, text, file
   const [voiceType, setVoiceType] = useState("default");
   const [voicePitch, setVoicePitch] = useState(1.0); // Default pitch value
@@ -18,6 +18,7 @@ export const UI = ({ hidden, ...props }) => {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [lipSyncDebug, setLipSyncDebug] = useState({ cue: null, time: 0 });
+  const [isOnline, setIsOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   
   // Check if screen size is mobile and update on resize
   useEffect(() => {
@@ -39,6 +40,17 @@ export const UI = ({ hidden, ...props }) => {
     };
     return () => {
       delete window.updateLipSyncDebug;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOnlineChange = () => setIsOnline(navigator.onLine);
+    window.addEventListener("online", handleOnlineChange);
+    window.addEventListener("offline", handleOnlineChange);
+
+    return () => {
+      window.removeEventListener("online", handleOnlineChange);
+      window.removeEventListener("offline", handleOnlineChange);
     };
   }, []);
 
@@ -114,19 +126,54 @@ export const UI = ({ hidden, ...props }) => {
   }
 
   // Calculate bottom padding to avoid overlap with mobile navbar
-  const mobileBottomPadding = isMobile ? 'pb-32' : '';
+  const mobileBottomPadding = isMobile ? 'pb-[calc(7rem+env(safe-area-inset-bottom))]' : '';
+  const desktopSidebarOffset = isMobile ? 0 : 368;
+  const desktopRightInset = isMobile ? 0 : 24;
+  const topCardStyle = isMobile
+    ? undefined
+    : { left: `calc(${desktopSidebarOffset}px + (100vw - ${desktopSidebarOffset}px) / 2)` };
+  const statusLabel = !isOnline
+    ? "Offline mode"
+    : loading
+      ? "Generating response"
+      : isSpeaking
+        ? "Speaking"
+        : "Ready";
 
   return (
     <>
+      <div
+        className={`fixed top-4 z-30 w-[min(calc(100%-2rem),28rem)] -translate-x-1/2 pointer-events-auto ${isMobile ? "left-1/2" : ""}`}
+        style={topCardStyle}
+      >
+        <div className="glass-panel rounded-[24px] px-4 py-3 sm:px-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="brand-title text-lg font-bold text-slate-900">Jenny</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">3D AI voice companion</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">Status</p>
+              <div className="mt-1 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700">
+                <span className={`h-2.5 w-2.5 rounded-full ${!isOnline ? 'bg-amber-400' : loading ? 'bg-pink-500' : isSpeaking ? 'bg-fuchsia-500' : 'bg-emerald-400'}`} />
+                {statusLabel}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Layout */}
       <div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex pointer-events-none">
         {/* Sidebar for Desktop - hidden on mobile */}
         {!isMobile && (
-          <div className="w-72 h-[calc(100%-2rem)] my-auto ml-2.5 mb-4 rounded-xl pointer-events-auto backdrop-blur-xl bg-white bg-opacity-50 shadow-lg flex flex-col border border-pink-100">
+          <div className="glass-panel soft-ring pointer-events-auto my-auto ml-4 mb-4 flex h-[calc(100%-2rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px]">
             <div className="p-4 flex flex-col h-full">
-              <h2 className="text-2xl font-bold mb-4 text-pink-600 text-center">
+              <p className="text-center text-xs uppercase tracking-[0.3em] text-slate-400">Conversation Studio</p>
+              <h2 className="brand-title text-3xl font-bold mb-2 text-pink-600 text-center">
                 <span className="bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">Jenny</span>
               </h2>
+              <p className="mb-5 text-center text-sm leading-6 text-slate-500">Tune the voice, switch modes, and keep the avatar framed exactly where you want it.</p>
               
               {/* Mode Selection - Updated styling */}
               <div className="mb-5">
@@ -354,22 +401,22 @@ export const UI = ({ hidden, ...props }) => {
           className={`fixed pointer-events-auto ${mobileBottomPadding}`}
           style={{
             bottom: isMobile ? 0 : "12%",
-            left: isMobile ? 0 : (windowWidth < 1024 ? 0 : "18rem"), // Add margin for sidebar on desktop
-            right: 0,
+            left: isMobile ? 0 : `${desktopSidebarOffset}px`,
+            right: isMobile ? 0 : `${desktopRightInset}px`,
             zIndex: 20,
             height: 'auto',
-            maxWidth: isMobile ? '100%' : 'calc(100% - 20rem)' // Account for sidebar width on desktop
+            maxWidth: isMobile ? '100%' : `calc(100% - ${desktopSidebarOffset + desktopRightInset}px)`
           }}
         >
-          <div className={`mx-auto p-4 ${isMobile ? "w-[80%]" : "w-[70%]"}`}>
+          <div className={`mx-auto ${isMobile ? "w-full px-4 pt-3" : "max-w-5xl px-4"}`}>
             {/* Chat input */}
             {inputMode === "chat" && (
-              <div className="relative backdrop-blur-md bg-white bg-opacity-60 rounded-xl shadow-lg overflow-hidden">
+              <div className="glass-panel soft-ring relative overflow-hidden rounded-[28px]">
                 <input
                   ref={input}
                   type="text"
-                  placeholder="Type your message..."
-                  className="w-full p-4 pr-20 bg-transparent placeholder-gray-500 focus:outline-none"
+                  placeholder="Ask Jenny something, or paste text for speech..."
+                  className="w-full bg-transparent p-4 pr-24 text-[15px] placeholder:text-slate-400 focus:outline-none sm:p-5"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       sendMessage();
@@ -378,7 +425,7 @@ export const UI = ({ hidden, ...props }) => {
                 />
                 <div className="absolute right-2 top-2">
                   <button
-                    className="p-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg"
+                    className="rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-rose-500 p-3 text-white shadow-lg shadow-pink-300/40 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={sendMessage}
                     disabled={loading || message}
                   >
@@ -403,15 +450,16 @@ export const UI = ({ hidden, ...props }) => {
 
             {/* Text input */}
             {inputMode === "text" && (
-              <div className="backdrop-blur-md bg-white bg-opacity-60 rounded-xl shadow-lg overflow-hidden">
+              <div className="glass-panel soft-ring overflow-hidden rounded-[28px]">
                 <textarea
                   ref={textInputRef}
                   placeholder="Enter text to be read..."
-                  className="w-full p-4 h-32 bg-transparent placeholder-gray-500 focus:outline-none resize-none"
+                  className="w-full p-4 h-36 bg-transparent placeholder:text-slate-400 focus:outline-none resize-none sm:p-5"
                 ></textarea>
-                <div className="p-2 flex justify-end border-t border-gray-200">
+                <div className="px-4 py-3 flex justify-between border-t border-white/40 text-sm text-slate-500">
+                  <span>Long-form narration mode</span>
                   <button
-                    className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg"
+                    className="rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-rose-500 px-4 py-2 font-semibold text-white shadow-lg shadow-pink-300/40 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={readText}
                     disabled={loading || message}
                   >
@@ -423,15 +471,16 @@ export const UI = ({ hidden, ...props }) => {
 
             {/* File upload */}
             {inputMode === "file" && (
-              <div className="backdrop-blur-md bg-white bg-opacity-60 rounded-xl shadow-lg">
-                <div className="p-6 flex flex-col items-center justify-center">
+              <div className="glass-panel soft-ring rounded-[28px]">
+                <div className="p-6 flex flex-col items-center justify-center text-center sm:p-8">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-gray-400 mb-4">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                   </svg>
-                  <p className="text-gray-600 mb-4">Upload a text file to be read</p>
+                  <p className="brand-title text-xl font-bold text-slate-900">Bring your own script</p>
+                  <p className="mb-4 mt-2 max-w-md text-sm leading-6 text-slate-500">Upload a text or markdown file and Jenny will turn it into spoken narration with avatar animation.</p>
                   <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".txt,.md,.doc,.docx" />
                   <button
-                    className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg"
+                    className="rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-rose-500 px-5 py-3 font-semibold text-white shadow-lg shadow-pink-300/40 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={triggerFileUpload}
                     disabled={loading || message}
                   >
@@ -445,15 +494,15 @@ export const UI = ({ hidden, ...props }) => {
       </div>
 
       {/* GitHub Footer */}
-      <div className="fixed bottom-4  z-30 w-full flex justify-center pointer-events-auto">
+      <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-30 pointer-events-auto">
         <a
           href="https://github.com/naveed-gung/jenny"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-gray-600 hover:text-pink-600 transition-colors"
+          className="glass-panel flex h-12 w-12 items-center justify-center rounded-2xl text-gray-600 transition-colors hover:text-pink-600"
           title="View on GitHub"
         >
-          <FaGithub size={38} />
+          <FaGithub size={24} />
         </a>
       </div>
 
@@ -463,7 +512,7 @@ export const UI = ({ hidden, ...props }) => {
           {/* Burger Menu Button */}
           <button
             onClick={() => setShowVoiceModal(true)}
-            className="fixed top-4 left-4 z-30 p-2 bg-white bg-opacity-50 backdrop-blur-md rounded-lg shadow-md pointer-events-auto"
+            className="glass-panel fixed left-4 top-[5.75rem] z-30 rounded-2xl p-3 pointer-events-auto"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />

@@ -1,25 +1,76 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   --leva-sizes-rootWidth: 340px;
+  --font-body: "Manrope", system-ui, sans-serif;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --ink: #241826;
 }
 
 #root {
   width: 100vw;
   height: 100vh;
+  isolation: isolate;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  background-color: #faaca8;
-  background-image: linear-gradient(19deg, #faaca8 0%, #ddd6f3 100%);
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background-color: #f7eaf2;
+  background-image:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.85), transparent 34%),
+    radial-gradient(circle at 20% 20%, rgba(255, 193, 218, 0.55), transparent 28%),
+    radial-gradient(circle at 80% 18%, rgba(213, 196, 255, 0.42), transparent 24%),
+    linear-gradient(160deg, #f7eaf2 0%, #efe4ff 48%, #fff3ea 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 80%);
 }
 
 body.greenScreen {
   background: #00ff00;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 248, 252, 0.64));
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 24px 70px rgba(75, 34, 77, 0.14);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.04em;
+}
+
+.soft-ring {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.32), 0 24px 80px rgba(75, 34, 77, 0.16);
 }
 
 /* Custom animation for the modal */
@@ -36,4 +87,17 @@ body.greenScreen {
 
 .animate-fade-in-up {
   animation: fadeInUp 0.3s ease-out forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.28s ease-out forwards;
 }

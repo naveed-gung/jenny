@@ -1,7 +1,6 @@
 import {
   CameraControls,
   ContactShadows,
-  Environment,
   Text,
 } from "@react-three/drei";
 import React, { Suspense, useEffect, useRef, useState } from "react";
@@ -88,17 +87,21 @@ export const Experience = () => {
   return (
     <>
       <CameraControls ref={cameraControls} />
-      <Environment preset="sunset" />
+      <color attach="background" args={["#f8edf2"]} />
+      <ambientLight intensity={0.9} color="#fff2f6" />
+      <hemisphereLight intensity={0.7} groundColor="#d2b8c8" color="#ffffff" />
+      <directionalLight position={[2.5, 4, 3]} intensity={1.4} color="#fff4f8" castShadow />
+      <directionalLight position={[-2, 2.5, -2]} intensity={0.45} color="#ffd9e6" />
       {/* Wrapping Dots into Suspense to prevent Blink when Troika/Font is loaded */}
       <Suspense>
         <Dots position-y={1.75} position-x={-0.02} />
       </Suspense>
       <ErrorBoundary>
         <Suspense fallback={null}>
-      <Avatar />
+          <Avatar />
         </Suspense>
       </ErrorBoundary>
-      <ContactShadows opacity={0.7} />
+      <ContactShadows opacity={0.5} blur={2} scale={9} far={4.2} />
     </>
   );
 };
