@@ -6,7 +6,7 @@ Command: npx gltfjsx@6.2.3 public/models/64f1a714fe61576b46f27ca2.glb -o src/com
 import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { button, useControls } from "leva";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useChat } from "../hooks/useChat";
 
@@ -20,6 +20,11 @@ const pickRandom = (items, exclude) => {
   }
 
   return pool[Math.floor(Math.random() * pool.length)];
+};
+
+const getTrackTargetName = (trackName) => {
+  const match = trackName.match(/^[^.[\]]+/);
+  return match ? match[0] : null;
 };
 
 // Define facial expressions
@@ -182,17 +187,53 @@ try {
 export function Avatar(props) {
   const { nodes, materials, scene } = useGLTF("/models/6815e61cf02ddac4006e98bb.glb");
   const { animations } = useGLTF("/models/animations.glb");
+  const sanitizedAnimations = useMemo(() => {
+    if (!animations?.length || !scene) {
+      return animations;
+    }
+
+    const availableNodeNames = new Set();
+    scene.traverse((child) => {
+      if (child.name) {
+        availableNodeNames.add(child.name);
+      }
+    });
+
+    return animations
+      .map((clip) => {
+        const filteredTracks = clip.tracks.filter((track) => {
+          const targetName = getTrackTargetName(track.name);
+          return targetName ? availableNodeNames.has(targetName) : false;
+        });
+
+        if (!filteredTracks.length) {
+          return null;
+        }
+
+        if (import.meta.env.DEV && filteredTracks.length !== clip.tracks.length) {
+          console.info(
+            `Filtered ${clip.tracks.length - filteredTracks.length} incompatible tracks from animation ${clip.name}`
+          );
+        }
+
+        const nextClip = clip.clone();
+        nextClip.tracks = filteredTracks;
+        nextClip.resetDuration();
+        return nextClip;
+      })
+      .filter(Boolean);
+  }, [animations, scene]);
   
   useEffect(() => {
-    if (import.meta.env.DEV && animations?.length) {
-      console.info("Available animations:", animations.map((clip) => clip.name));
+    if (import.meta.env.DEV && sanitizedAnimations?.length) {
+      console.info("Available animations:", sanitizedAnimations.map((clip) => clip.name));
     }
-  }, [animations]);
+  }, [sanitizedAnimations]);
 
   const { message, onMessagePlayed, setIsSpeaking } = useChat();
   const [lipsync, setLipsync] = useState(null);
   const group = useRef();
-  const { actions, mixer } = useAnimations(animations, group);
+  const { actions, mixer } = useAnimations(sanitizedAnimations, group);
   const [animation, setAnimation] = useState("Idle");
   const [blink, setBlink] = useState(false);
   const [winkLeft, setWinkLeft] = useState(false);

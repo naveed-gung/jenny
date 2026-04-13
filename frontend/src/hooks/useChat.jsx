@@ -18,6 +18,8 @@ const ANIMATION_ALIASES = {
   Surprised: "Talking_1",
 };
 
+const CHAT_REQUEST_TIMEOUT_MS = 45000;
+
 const normalizeMessageAnimation = (message) => ({
   ...message,
   animation: ANIMATION_ALIASES[message.animation] || message.animation,
@@ -34,14 +36,23 @@ export const ChatProvider = ({ children }) => {
   const chat = async (message, mode = "chat", voiceType = "default", voicePitch = 1.0, voiceSpeed = 1.0, voiceVolume = 100) => {
     setLoading(true);
     setIsSpeaking(false);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CHAT_REQUEST_TIMEOUT_MS);
+
     try {
       const data = await fetch(`${backendUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
         body: JSON.stringify({ message, mode, voiceType, voicePitch, voiceSpeed, voiceVolume }),
       });
+
+      if (!data.ok) {
+        throw new Error(`Chat request failed with status ${data.status}`);
+      }
       
       const resp = (await data.json()).messages;
       
@@ -51,7 +62,18 @@ export const ChatProvider = ({ children }) => {
       setMessages(prevMessages => [...prevMessages, ...processedMessages]);
     } catch (error) {
       console.error("Chat API error:", error);
+
+      const fallbackText = error.name === "AbortError"
+        ? "Jenny took too long to answer, so the request was cancelled. Try again in a moment."
+        : "Jenny hit a runtime issue while processing that request. Check the backend logs and try again.";
+
+      setMessages(prevMessages => [...prevMessages, normalizeMessageAnimation({
+        text: fallbackText,
+        facialExpression: "sad",
+        animation: "Talking_2",
+      })]);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   };

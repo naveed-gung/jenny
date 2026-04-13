@@ -19,6 +19,8 @@ const voiceMapping = {
   male: "10",    // Male voice (English)
 };
 
+const EXTERNAL_REQUEST_TIMEOUT_MS = 15000;
+
 const TALKING_ANIMATIONS = ["Talking_0", "Talking_1", "Talking_2"];
 
 const pickRandom = (items, exclude) => {
@@ -267,6 +269,20 @@ const execCommand = (command) => {
       resolve(stdout);
     });
   });
+};
+
+const fetchWithTimeout = async (url, options = {}, timeoutMs = EXTERNAL_REQUEST_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 const lipSyncMessage = async (message) => {
@@ -535,6 +551,11 @@ const splitTextIntoChunks = (text, maxLength = 500) => {
 // Function to get response from Google's Gemini API
 const getAIResponse = async (userMessage) => {
   try {
+    if (!geminiApiKey) {
+      console.warn("GEMINI_API_KEY is missing, using offline fallback response");
+      return "I'm in offline mode right now, but I'm still here with you. Try again after adding a working Gemini API key.";
+    }
+
     // Log the request for debugging
     console.log("Sending request to Gemini API with message:", userMessage.substring(0, 50) + "...");
 
@@ -556,7 +577,7 @@ const getAIResponse = async (userMessage) => {
     console.log("Using Gemini API key:", geminiApiKey ? "Key is present (starting with: " + geminiApiKey.substring(0, 3) + "...)" : "Key is missing");
 
     // Make request to Gemini API with gemini-2.0-flash model
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
       {
         method: "POST",
@@ -578,6 +599,11 @@ const getAIResponse = async (userMessage) => {
     if (!response.ok) {
       console.error(`Gemini API error: ${response.status} - ${response.statusText}`);
       console.error("Response body:", responseText);
+
+      if (response.status === 429) {
+        return "My Gemini quota is exhausted right now, so I can't think freely at the moment. Please try again later or switch to a key with available quota.";
+      }
+
       return "I'm sorry, I'm having trouble connecting to my brain right now. Please try again later.";
     }
 
@@ -600,6 +626,11 @@ const getAIResponse = async (userMessage) => {
     }
   } catch (error) {
     console.error("Error with Gemini API:", error);
+
+    if (error.name === "AbortError") {
+      return "My AI response timed out before it came back. Please try again in a moment.";
+    }
+
     return "I'm sorry, I'm having trouble thinking right now. Please try again later.";
   }
 };
