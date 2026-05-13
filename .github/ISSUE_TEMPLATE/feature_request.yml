@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose an improvement for Jenny
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user or developer problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you want to see.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: Note affected areas, APIs, or rollout concerns.
+  - type: textarea
+    id: success
+    attributes:
+      label: Success signal
+      description: How should we know this feature is complete?

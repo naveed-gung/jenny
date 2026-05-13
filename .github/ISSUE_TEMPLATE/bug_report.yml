@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible problem in Jenny
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug and the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps needed to reproduce the issue.
+      placeholder: |
+        1. Run...
+        2. Open...
+        3. Click...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Share OS, browser, Node.js version, and any relevant API setup.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Add logs, screenshots, or related details.
